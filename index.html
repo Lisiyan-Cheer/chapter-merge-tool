@@ -194,6 +194,48 @@
   ::-webkit-scrollbar-thumb:hover{background:#aab2bf}
   ::-webkit-scrollbar-track{background:transparent}
 
+  /* ===== Compare view ===== */
+  .compare-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+  .cmp-col{background:#fff; border:1px solid var(--border); border-radius:12px; padding:10px; box-shadow:var(--shadow)}
+  .cmp-head{display:flex; align-items:center; gap:8px; margin-bottom:8px}
+  .cmp-head .tag{width:22px; height:22px; border-radius:6px; color:#fff; font-size:12px; display:flex; align-items:center; justify-content:center; font-weight:600}
+  .cmp-head .tag.l{background:#ef4444}
+  .cmp-head .tag.r{background:#10b981}
+  .cmp-head .m{font-size:12px; color:var(--muted)}
+  .cmp-col textarea{
+    width:100%; min-height:140px; border:1px solid var(--border); border-radius:8px;
+    padding:10px; font:inherit; font-size:13px; resize:vertical; background:#fafbfc;
+  }
+  .cmp-col textarea:focus{outline:2px solid var(--accent); border-color:var(--accent)}
+  .cmp-blocks{margin-top:10px; display:flex; flex-direction:column; gap:6px}
+  .cmp-block{
+    border:1px solid var(--border); border-radius:8px; padding:9px 11px; cursor:pointer;
+    font-size:13px; line-height:1.6; background:#fff; transition:.1s; white-space:pre-wrap; word-break:break-word;
+  }
+  .cmp-block:hover{border-color:var(--accent)}
+  .cmp-block.picked{border-color:var(--accent); background:var(--sel,#eff6ff); box-shadow:0 0 0 2px rgba(59,130,246,.2)}
+  .cmp-block .src{font-size:10px; color:var(--muted); display:block; margin-bottom:4px}
+  .cmp-block.is-title{font-weight:600; background:#f8fafc}
+  .cmp-result-head{display:flex; align-items:center; gap:10px; margin:18px 0 8px}
+  .cmp-result-head h3{font-size:14px; margin:0; flex:1}
+  .cmp-result{display:flex; flex-direction:column; gap:8px; padding-bottom:8px}
+  .cmp-item{background:#fff; border:1px solid var(--border); border-radius:10px; display:flex; align-items:flex-start; box-shadow:var(--shadow)}
+  .cmp-item.dragging{opacity:.5}
+  .cmp-item .ci-content{flex:1; padding:10px 12px; min-width:0; font-size:13px; white-space:pre-wrap; word-break:break-word}
+  .cmp-item .ci-content.is-title{font-weight:600; background:#f8fafc; border-radius:8px 0 0 8px}
+  .cmp-item .ci-src{font-size:11px; color:#fff; padding:1px 7px; border-radius:8px; display:inline-block; margin-bottom:5px}
+  .cmp-item .ci-src.l{background:#ef4444}
+  .cmp-item .ci-src.r{background:#10b981}
+  .cmp-item .ci-actions{display:flex; flex-direction:column; align-items:center; gap:6px; padding:10px 8px}
+  .cmp-handle{width:32px; height:36px; border-radius:7px; background:#eef0f3; display:flex; align-items:center; justify-content:center; cursor:grab; color:var(--muted); touch-action:none; border:1px solid var(--border)}
+  .cmp-handle:hover{background:#e2e6ea; color:var(--text)}
+  .cmp-handle:active{cursor:grabbing}
+  .cmp-handle svg{width:16px; height:16px}
+  .cmp-del{width:32px; height:32px; border-radius:7px; background:#fee2e2; color:#dc2626; border:1px solid #fecaca; cursor:pointer; font-size:16px; line-height:1}
+  .cmp-del:hover{background:#fecaca}
+  .cmp-hint{font-size:12px; color:var(--muted); margin-top:8px}
+  .cmp-empty{text-align:center; color:var(--muted); padding:24px; font-size:13px}
+
   /* mobile */
   @media (max-width:760px){
     .workspace{grid-template-columns:1fr; gap:10px}
@@ -203,6 +245,7 @@
     .font-ctl span{display:none}
     .topbar{flex-wrap:wrap}
     .topbar h1{font-size:15px}
+    .compare-grid{grid-template-columns:1fr}
   }
   .no-res{user-select:none}
 </style>
@@ -227,6 +270,10 @@
     <div class="ico">📂</div>
     <h2>文档库</h2>
     <p>上传小说概括，自动按标签分类整理</p>
+    <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:14px">
+      <button class="btn primary" id="goCompareBtn">🔗 对比合并（同章两版挑段）</button>
+      <button class="btn" id="goWorkspaceBtn">📑 双列章节合并</button>
+    </div>
   </div>
   <div class="dropzone" id="homeDrop">
     <div class="big">📄</div>
@@ -239,6 +286,41 @@
     <h3>🏷️ 按标签分类（点击筛选章节）</h3>
     <div class="tag-cloud" id="tagCloud"></div>
   </div>
+</div>
+
+<!-- ===== COMPARE VIEW (two versions of same chapter, pick paragraphs) ===== -->
+<div class="view" id="view-compare">
+  <div class="back-row">
+    <button class="btn ghost sm" id="compareBack">← 返回</button>
+    <h2>对比合并 · 同章两版挑段</h2>
+  </div>
+  <p style="color:var(--muted); font-size:13px; margin:0 0 10px">把同一章生成的<b>两版</b>分别贴进左右框 → 点段把好的那版加入下方结果 → 结果可拖拽排序 / 删除 → 导出。点段可单选也可多选；左右可任意混搭。</p>
+
+  <div class="compare-grid">
+    <div class="cmp-col">
+      <div class="cmp-head"><span class="tag l">A 版</span><span class="m">按段拆分，点击挑段</span></div>
+      <textarea id="cmpInputA" placeholder="粘贴 A 版正文（空行分段，# 开头算标题）..."></textarea>
+      <button class="btn sm" id="loadA">拆分 A</button>
+      <div class="cmp-blocks" id="blocksA"></div>
+    </div>
+    <div class="cmp-col">
+      <div class="cmp-head"><span class="tag r">B 版</span><span class="m">按段拆分，点击挑段</span></div>
+      <textarea id="cmpInputB" placeholder="粘贴 B 版正文（空行分段，# 开头算标题）..."></textarea>
+      <button class="btn sm" id="loadB">拆分 B</button>
+      <div class="cmp-blocks" id="blocksB"></div>
+    </div>
+  </div>
+
+  <div class="cmp-result-head">
+    <h3>📝 合成结果 <span class="sel-count" id="cmpResCount">0</span></h3>
+    <div style="display:flex; gap:6px">
+      <button class="btn ghost sm" id="cmpExport">导出 .md</button>
+      <button class="btn ghost sm" id="cmpCopy">复制</button>
+      <button class="btn ghost sm" id="cmpClearRes">清空结果</button>
+    </div>
+  </div>
+  <div class="cmp-result" id="cmpResult"></div>
+  <div class="cmp-hint">提示：结果区拖 <b>⋮⋮</b> 排序，✕ 删除；点上方已选项可取消（从结果移除）</div>
 </div>
 
 <!-- ===== TAG RESULT VIEW ===== -->
@@ -497,6 +579,181 @@ function showView(id){
   window.scrollTo(0,0);
 }
 document.getElementById('logo').addEventListener('click', ()=>{ showView('home'); renderHome(); });
+document.getElementById('goCompareBtn').addEventListener('click', ()=>{ showView('compare'); });
+document.getElementById('goWorkspaceBtn').addEventListener('click', ()=>{ showView('workspace'); });
+
+/* =========================================================
+ * COMPARE mode: two versions of same chapter -> pick paragraphs
+ * cmpBlocks: {A:[], B:[]} each {text, isTitle, id}
+ * cmpResult: [{side, id, text, isTitle}]  (deep copy of picked blocks, independent order)
+ * ========================================================= */
+const cmpState = { A:[], B:[], result:[], pickedKeys:new Set() };
+const cmpKey = (side, id)=> side+'#'+id;
+
+function splitParas(text){
+  // split by blank lines; a line starting with # is a title segment
+  const raw = text.replace(/\r\n?/g,'\n').split(/\n[ \t]*\n+/);
+  const out = [];
+  let i = 0;
+  for(const chunk of raw){
+    const t = chunk.trim();
+    if(!t) continue;
+    out.push({ id:i++, text:t, isTitle:/^#{1,6}\s/.test(t) });
+  }
+  return out;
+}
+
+function renderCmpBlocks(side){
+  const arr = cmpState[side];
+  const box = document.getElementById('blocks'+side);
+  if(arr.length===0){ box.innerHTML=''; return; }
+  box.innerHTML = arr.map(b=>{
+    const picked = cmpState.pickedKeys.has(cmpKey(side,b.id));
+    return `<div class="cmp-block${picked?' picked':''}${b.isTitle?' is-title':''}" data-cmp-side="${side}" data-cmp-id="${b.id}">${escapeHtml(b.text)}</div>`;
+  }).join('');
+}
+
+document.getElementById('loadA').addEventListener('click', ()=>{
+  cmpState.A = splitParas(document.getElementById('cmpInputA').value);
+  // remove A-picked entries from result if their source id no longer exists
+  const validIds = new Set(cmpState.A.map(b=>b.id));
+  cmpState.result = cmpState.result.filter(r=> !(r.side==='A' && !validIds.has(r.id)) );
+  cmpState.pickedKeys = new Set(cmpState.result.map(r=>cmpKey(r.side,r.id)));
+  renderCmpBlocks('A'); renderCmpResult();
+});
+document.getElementById('loadB').addEventListener('click', ()=>{
+  cmpState.B = splitParas(document.getElementById('cmpInputB').value);
+  const validIds = new Set(cmpState.B.map(b=>b.id));
+  cmpState.result = cmpState.result.filter(r=> !(r.side==='B' && !validIds.has(r.id)) );
+  cmpState.pickedKeys = new Set(cmpState.result.map(r=>cmpKey(r.side,r.id)));
+  renderCmpBlocks('B'); renderCmpResult();
+});
+
+/* toggle pick by clicking a block */
+['blocksA','blocksB'].forEach(boxId=>{
+  document.getElementById(boxId).addEventListener('click', e=>{
+    const blk = e.target.closest('.cmp-block');
+    if(!blk) return;
+    const side = blk.dataset.cmpSide, id = +blk.dataset.cmpId;
+    const key = cmpKey(side,id);
+    const src = cmpState[side].find(b=>b.id===id);
+    if(cmpState.pickedKeys.has(key)){
+      // un-pick: remove all result entries with this key (could be multiple)
+      cmpState.result = cmpState.result.filter(r=> cmpKey(r.side,r.id)!==key);
+      cmpState.pickedKeys.delete(key);
+    } else {
+      cmpState.result.push({ side, id, text:src.text, isTitle:src.isTitle });
+      cmpState.pickedKeys.add(key);
+    }
+    renderCmpBlocks(side); renderCmpResult();
+  });
+});
+
+function renderCmpResult(){
+  const box = document.getElementById('cmpResult');
+  document.getElementById('cmpResCount').textContent = cmpState.result.length;
+  if(cmpState.result.length===0){
+    box.innerHTML = `<div class="cmp-empty">点击上方任一段落加入结果…</div>`; return;
+  }
+  box.innerHTML = cmpState.result.map((it,idx)=>{
+    return `<div class="cmp-item" data-idx="${idx}">
+      <div class="ci-content${it.isTitle?' is-title':''}">
+        <span class="ci-src ${it.side==='A'?'l':'r'}">${it.side} 版</span>
+        ${escapeHtml(it.text)}
+      </div>
+      <div class="ci-actions">
+        <div class="cmp-handle" title="拖动排序">
+          <svg viewBox="0 0 16 16"><path fill="currentColor" d="M4 3h2v2H4zM8 3h2v2H8zM4 7h2v2H4zM8 7h2v2H8zM4 11h2v2H4zM8 11h2v2H8z"/></svg>
+        </div>
+        <button class="cmp-del" title="删除">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+document.getElementById('cmpResult').addEventListener('click', e=>{
+  const del = e.target.closest('.cmp-del');
+  if(!del) return;
+  const item = del.closest('.cmp-item');
+  const idx = +item.dataset.idx;
+  const removed = cmpState.result[idx];
+  cmpState.result.splice(idx,1);
+  cmpState.pickedKeys.delete(cmpKey(removed.side, removed.id));
+  renderCmpBlocks(removed.side); renderCmpResult();
+});
+document.getElementById('cmpClearRes').addEventListener('click', ()=>{
+  cmpState.result.length=0; cmpState.pickedKeys.clear();
+  renderCmpBlocks('A'); renderCmpBlocks('B'); renderCmpResult();
+});
+document.getElementById('compareBack').addEventListener('click', ()=>{ showView('home'); renderHome(); });
+
+/* export / copy */
+function cmpToText(){
+  return cmpState.result.map(it=>{
+    // strip leading # if user wants clean? keep as-is for clarity
+    return it.text;
+  }).join('\n\n');
+}
+document.getElementById('cmpExport').addEventListener('click', ()=>{
+  if(cmpState.result.length===0){ alert('结果为空'); return; }
+  const blob = new Blob([cmpToText()], {type:'text/markdown;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download='合成章节.md'; a.click();
+  URL.revokeObjectURL(a.href);
+});
+document.getElementById('cmpCopy').addEventListener('click', async ()=>{
+  if(cmpState.result.length===0){ alert('结果为空'); return; }
+  try{ await navigator.clipboard.writeText(cmpToText()); alert('已复制'); }
+  catch{ alert('复制失败'); }
+});
+
+/* drag reorder in result */
+(function(){
+  let dragIdx=null, dragEl=null, placeholder=null, offsetY=0;
+  const box = document.getElementById('cmpResult');
+  box.addEventListener('pointerdown', e=>{
+    const h = e.target.closest('.cmp-handle'); if(!h) return;
+    e.preventDefault();
+    const item = h.closest('.cmp-item');
+    dragIdx = +item.dataset.idx; dragEl = item;
+    const rect = item.getBoundingClientRect();
+    offsetY = e.clientY - rect.top;
+    item.classList.add('dragging');
+    placeholder = item.cloneNode(true); placeholder.classList.remove('dragging');
+    placeholder.style.visibility='hidden';
+    item.parentNode.insertBefore(placeholder, item);
+    item.style.position='fixed'; item.style.zIndex='60';
+    item.style.width=rect.width+'px'; item.style.left=rect.left+'px';
+    move(e.clientY);
+    const mv = ev=>{ ev.preventDefault(); move(ev.clientY); };
+    const up = ()=>{
+      const items=[...box.querySelectorAll('.cmp-item')];
+      let newIdx=0;
+      for(let i=0;i<items.length;i++){ if(items[i]===placeholder){ newIdx=i; break; } }
+      dragEl.style.position=''; dragEl.style.zIndex=''; dragEl.style.width=''; dragEl.style.left=''; dragEl.style.top='';
+      dragEl.classList.remove('dragging');
+      if(placeholder.parentNode) placeholder.parentNode.removeChild(placeholder);
+      placeholder=null;
+      if(newIdx!==dragIdx){ const [m]=cmpState.result.splice(dragIdx,1); cmpState.result.splice(newIdx,0,m); }
+      renderCmpResult();
+      dragEl=null; dragIdx=null;
+      document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up);
+    };
+    document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
+  });
+  function move(y){
+    if(!dragEl) return;
+    dragEl.style.top=(y-offsetY)+'px';
+    const items=[...box.querySelectorAll('.cmp-item:not(.dragging)')];
+    let target=null;
+    for(const it of items){
+      const r=it.getBoundingClientRect();
+      if(y < r.top + r.height/2){ target=it; break; }
+    }
+    if(target && target!==placeholder) box.insertBefore(placeholder, target);
+    else if(!target) box.appendChild(placeholder);
+  }
+})();
 
 /* =========================================================
  * Upload to library (home)
