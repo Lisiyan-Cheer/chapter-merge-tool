@@ -2,248 +2,400 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>章节合并工具</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
+<title>章节工具</title>
 <style>
   :root{
     --bg:#f4f5f7; --panel:#fff; --border:#e3e6ea; --accent:#3b82f6;
     --accent-dark:#2563eb; --text:#1f2937; --muted:#6b7280;
-    --sel:#eff6ff; --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.06);
+    --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.06);
+    --font-size:15px;
   }
-  *{box-sizing:border-box}
-  html,body{margin:0;height:100%}
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{margin:0; min-height:100%}
   body{
     font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
-    background:var(--bg); color:var(--text); font-size:14px; line-height:1.6;
+    background:var(--bg); color:var(--text); font-size:var(--font-size); line-height:1.65;
+    padding-bottom:env(safe-area-inset-bottom);
   }
   /* ===== Top bar ===== */
   .topbar{
     position:sticky; top:0; z-index:30; background:var(--panel);
-    border-bottom:1px solid var(--border); padding:10px 16px;
-    display:flex; align-items:center; gap:12px; box-shadow:var(--shadow);
+    border-bottom:1px solid var(--border); padding:8px 12px;
+    display:flex; align-items:center; gap:8px; box-shadow:var(--shadow);
+    padding-top:calc(8px + env(safe-area-inset-top));
   }
-  .topbar h1{font-size:16px; margin:0; font-weight:600; white-space:nowrap}
+  .topbar h1{font-size:16px; margin:0; font-weight:600; white-space:nowrap; cursor:pointer}
   .topbar .spacer{flex:1}
   .btn{
     border:1px solid var(--border); background:var(--panel); color:var(--text);
-    padding:7px 14px; border-radius:8px; cursor:pointer; font-size:13px;
+    padding:8px 14px; border-radius:10px; cursor:pointer; font-size:13px;
     transition:.15s; white-space:nowrap;
   }
-  .btn:hover{background:#f0f1f3}
+  .btn:hover,.btn:active{background:#eef0f3}
   .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff}
   .btn.primary:hover{background:var(--accent-dark)}
   .btn.primary:disabled{background:#9bb8e8; border-color:#9bb8e8; cursor:not-allowed}
   .btn.ghost{border-color:transparent; background:transparent; color:var(--muted)}
   .btn.ghost:hover{background:#eef0f2}
-  .sel-count{
-    font-size:12px; color:var(--muted); padding:2px 8px; background:#eef0f3;
-    border-radius:20px;
-  }
+  .btn.sm{padding:6px 10px; font-size:12px}
+  .sel-count{font-size:12px; color:var(--muted); padding:3px 10px; background:#eef0f3; border-radius:20px; white-space:nowrap}
+  .font-ctl{display:flex; gap:4px; align-items:center; border:1px solid var(--border); border-radius:10px; overflow:hidden}
+  .font-ctl button{border:0; background:transparent; padding:6px 12px; font-size:16px; cursor:pointer; color:var(--text)}
+  .font-ctl button:hover{background:#eef0f2}
+  .font-ctl span{padding:0 6px; font-size:12px; color:var(--muted); border-left:1px solid var(--border); border-right:1px solid var(--border)}
 
-  /* ===== Workspace (two columns) ===== */
-  .workspace{
-    display:grid; grid-template-columns:1fr 1fr; gap:14px;
-    padding:14px; height:calc(100vh - 58px); overflow:hidden;
+  /* ===== Views ===== */
+  .view{display:none; padding:12px; max-width:1100px; margin:0 auto}
+  .view.active{display:block}
+
+  /* ===== Home ===== */
+  .hero{text-align:center; padding:20px 16px 8px}
+  .hero .ico{font-size:40px}
+  .hero h2{font-size:18px; margin:8px 0 4px}
+  .hero p{color:var(--muted); margin:0 0 16px; font-size:13px}
+  .dropzone{
+    border:2px dashed #cbd2dc; border-radius:14px; padding:36px 20px; text-align:center;
+    color:var(--muted); cursor:pointer; transition:.15s; background:#fff;
+    box-shadow:var(--shadow); margin-bottom:14px;
   }
-  .column{
-    background:var(--panel); border:1px solid var(--border); border-radius:12px;
-    display:flex; flex-direction:column; overflow:hidden; box-shadow:var(--shadow);
+  .dropzone:hover,.dropzone.drag{border-color:var(--accent); background:var(--sel, #eff6ff); color:var(--accent)}
+  .dropzone .big{font-size:34px; line-height:1; margin-bottom:6px}
+  .dropzone input{display:none}
+
+  .doc-lib{margin-top:6px}
+  .doc-card{
+    background:#fff; border:1px solid var(--border); border-radius:12px; padding:12px 14px;
+    margin-bottom:10px; box-shadow:var(--shadow); display:flex; align-items:center; gap:12px;
   }
-  .col-head{
-    padding:10px 14px; border-bottom:1px solid var(--border);
-    display:flex; align-items:center; gap:10px; background:#fafbfc;
+  .doc-card .info{flex:1; min-width:0}
+  .doc-card .t{font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .doc-card .m{font-size:12px; color:var(--muted); margin-top:2px}
+  .doc-card .act{display:flex; gap:6px}
+  .doc-card .del{color:#dc2626; border-color:#fecaca; background:#fee2e2}
+  .doc-card .del:hover{background:#fecaca}
+
+  /* ===== Tag cloud ===== */
+  .tag-section{margin-top:6px}
+  .tag-section h3{font-size:13px; color:var(--muted); margin:14px 0 8px; font-weight:600}
+  .tag-cloud{display:flex; flex-wrap:wrap; gap:8px}
+  .tag-chip{
+    display:inline-flex; align-items:center; gap:5px; padding:6px 12px;
+    border-radius:20px; font-size:13px; cursor:pointer; user-select:none;
+    border:1px solid transparent; transition:.12s; line-height:1.2;
   }
-  .col-head .tag{
-    width:22px; height:22px; border-radius:6px; color:#fff; font-size:12px;
-    display:flex; align-items:center; justify-content:center; font-weight:600;
+  .tag-chip:hover{transform:translateY(-1px); box-shadow:0 3px 8px rgba(0,0,0,.12)}
+  .tag-chip .n{font-size:11px; opacity:.7; padding:1px 6px; background:rgba(0,0,0,.1); border-radius:8px}
+  .tag-chip.lit{outline:2px solid var(--accent); outline-offset:1px}
+
+  /* ===== Chapter list (tag-filtered) ===== */
+  .back-row{display:flex; align-items:center; gap:10px; margin-bottom:12px}
+  .back-row h2{font-size:16px; margin:0; flex:1}
+  .chap{
+    background:#fff; border:1px solid var(--border); border-radius:12px; margin-bottom:10px;
+    overflow:hidden; box-shadow:var(--shadow); transition:.12s;
   }
+  .chap.sel{border-color:var(--accent); box-shadow:0 0 0 2px rgba(59,130,246,.25)}
+  .chap-row{display:flex; align-items:flex-start; gap:12px; padding:12px 14px; cursor:pointer}
+  .chap-row .cb{flex:0 0 20px; width:20px; height:20px; margin-top:2px; accent-color:var(--accent); cursor:pointer}
+  .chap-main{flex:1; min-width:0}
+  .chap-title{font-weight:600; font-size:15px; margin:0 0 6px; word-break:break-word}
+  .chap-body{font-size:14px; color:#374151; white-space:pre-wrap; word-break:break-word}
+  .chap-tagline{margin-top:8px; display:flex; flex-wrap:wrap; gap:5px}
+
+  /* ===== Workspace (two columns, desktop) ===== */
+  .workspace{display:grid; grid-template-columns:1fr 1fr; gap:14px}
+  .column{background:#fff; border:1px solid var(--border); border-radius:12px; display:flex; flex-direction:column; overflow:hidden; box-shadow:var(--shadow); max-height:calc(100vh - 120px)}
+  .col-head{padding:10px 12px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px; background:#fafbfc}
+  .col-head .tag{width:22px; height:22px; border-radius:6px; color:#fff; font-size:12px; display:flex; align-items:center; justify-content:center; font-weight:600}
   .col-head .tag.l{background:#ef4444}
   .col-head .tag.r{background:#10b981}
-  .col-head .title{font-weight:600; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .col-head .title{font-weight:600; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px}
   .col-head .meta{font-size:12px; color:var(--muted)}
-  .col-actions{display:flex; gap:6px}
-
-  .dropzone{
-    margin:14px; border:2px dashed #cbd2dc; border-radius:10px;
-    padding:36px 20px; text-align:center; color:var(--muted); cursor:pointer;
-    transition:.15s; flex:1; display:flex; flex-direction:column;
-    align-items:center; justify-content:center; gap:8px;
-  }
-  .dropzone:hover,.dropzone.drag{border-color:var(--accent); background:var(--sel); color:var(--accent)}
-  .dropzone .big{font-size:36px; line-height:1}
-  .dropzone input{display:none}
-  .dropzone .hint{font-size:12px}
-
-  .doc-list{flex:1; overflow-y:auto; padding:6px 10px 16px}
-  .chap{
-    border:1px solid var(--border); border-radius:8px; margin:8px 0;
-    padding:0; background:#fff; transition:.12s; overflow:hidden;
-  }
-  .chap.sel{border-color:var(--accent); background:var(--sel)}
-  .chap-row{display:flex; align-items:flex-start; gap:10px; padding:10px 12px; cursor:pointer}
-  .chap-row .cb{
-    flex:0 0 18px; width:18px; height:18px; margin-top:2px; accent-color:var(--accent);
-    cursor:pointer;
-  }
-  .chap-title{font-weight:600; font-size:13.5px; margin:0 0 4px; word-break:break-word}
-  .chap-body{font-size:13px; color:#374151; white-space:pre-wrap; word-break:break-word}
-  .chap-tags{color:var(--muted); font-size:12px; margin-top:6px}
-  .doc-meta-line{font-size:12px; color:var(--muted); padding:4px 12px 0}
+  .col-actions{display:flex; gap:4px}
+  .col-drop{margin:12px; border:2px dashed #cbd2dc; border-radius:10px; padding:30px 16px; text-align:center; color:var(--muted); cursor:pointer; transition:.15s; flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px}
+  .col-drop:hover,.col-drop.drag{border-color:var(--accent); color:var(--accent)}
+  .col-drop .big{font-size:30px}
+  .col-drop input{display:none}
+  .doc-list{flex:1; overflow-y:auto; padding:6px 8px 14px}
 
   /* ===== Merge overlay ===== */
-  .overlay{
-    position:fixed; inset:0; background:rgba(15,23,42,.45); z-index:50;
-    display:none; align-items:stretch; justify-content:center;
-  }
+  .overlay{position:fixed; inset:0; background:rgba(15,23,42,.5); z-index:50; display:none; align-items:stretch; justify-content:center}
   .overlay.show{display:flex}
-  .merge-panel{
-    width:100%; max-width:900px; background:var(--bg); display:flex;
-    flex-direction:column; overflow:hidden;
-  }
-  .merge-head{
-    background:var(--panel); border-bottom:1px solid var(--border);
-    padding:12px 18px; display:flex; align-items:center; gap:12px; box-shadow:var(--shadow);
-  }
+  .merge-panel{width:100%; max-width:900px; background:var(--bg); display:flex; flex-direction:column; overflow:hidden}
+  .merge-head{background:var(--panel); border-bottom:1px solid var(--border); padding:10px 14px; display:flex; align-items:center; gap:10px; box-shadow:var(--shadow); padding-top:calc(10px + env(safe-area-inset-top))}
   .merge-head h2{font-size:15px; margin:0; font-weight:600}
-  .merge-body{flex:1; overflow-y:auto; padding:16px 18px}
-  .merge-foot{
-    background:var(--panel); border-top:1px solid var(--border);
-    padding:10px 18px; display:flex; align-items:center; gap:10px;
-  }
+  .merge-body{flex:1; overflow-y:auto; padding:14px; -webkit-overflow-scrolling:touch}
+  .merge-foot{background:var(--panel); border-top:1px solid var(--border); padding:10px 14px; display:flex; align-items:center; gap:8px; padding-bottom:calc(10px + env(safe-area-inset-bottom))}
   .merge-foot .hint{font-size:12px; color:var(--muted); flex:1}
-
-  .m-item{
-    background:#fff; border:1px solid var(--border); border-radius:10px;
-    margin-bottom:10px; display:flex; align-items:flex-start; box-shadow:var(--shadow);
-    transition:box-shadow .15s, transform .15s;
-  }
+  .m-item{background:#fff; border:1px solid var(--border); border-radius:12px; margin-bottom:10px; display:flex; align-items:flex-start; box-shadow:var(--shadow); transition:box-shadow .15s}
   .m-item.dragging{opacity:.5; box-shadow:0 8px 20px rgba(0,0,0,.18)}
-  .m-item.drop-target{border-color:var(--accent); border-style:dashed}
-  .m-item .m-content{flex:1; padding:12px 14px; min-width:0}
-  .m-item .m-title{font-weight:600; font-size:14px; margin:0 0 4px}
-  .m-item .m-source{
-    font-size:11px; color:#fff; padding:1px 7px; border-radius:10px;
-    display:inline-block; margin-bottom:6px;
-  }
-  .m-item .m-source.l{background:#ef4444}
-  .m-item .m-source.r{background:#10b981}
-  .m-item .m-body{font-size:13px; color:#374151; white-space:pre-wrap; word-break:break-word}
-  .m-item .m-tags{color:var(--muted); font-size:12px; margin-top:6px}
-  .m-item .m-actions{display:flex; flex-direction:column; align-items:center; gap:6px; padding:10px 8px}
-  .m-handle{
-    width:28px; height:34px; border-radius:6px; background:#eef0f3;
-    display:flex; align-items:center; justify-content:center; cursor:grab;
-    color:var(--muted); user-select:none; touch-action:none;
-    border:1px solid var(--border);
-  }
+  .m-content{flex:1; padding:12px 14px; min-width:0}
+  .m-title{font-weight:600; font-size:14px; margin:0 0 4px}
+  .m-source{font-size:11px; color:#fff; padding:2px 8px; border-radius:10px; display:inline-block; margin-bottom:6px}
+  .m-source.l{background:#ef4444}
+  .m-source.r{background:#10b981}
+  .m-body{font-size:13px; color:#374151; white-space:pre-wrap; word-break:break-word}
+  .m-actions{display:flex; flex-direction:column; align-items:center; gap:8px; padding:12px 8px}
+  .m-handle{width:34px; height:42px; border-radius:8px; background:#eef0f3; display:flex; align-items:center; justify-content:center; cursor:grab; color:var(--muted); user-select:none; touch-action:none; border:1px solid var(--border)}
   .m-handle:hover{background:#e2e6ea; color:var(--text)}
   .m-handle:active{cursor:grabbing}
-  .m-handle svg{width:16px; height:16px}
-  .m-del{
-    width:28px; height:28px; border-radius:6px; background:#fee2e2; color:#dc2626;
-    border:1px solid #fecaca; cursor:pointer; display:flex; align-items:center;
-    justify-content:center; font-size:16px; line-height:1;
-  }
+  .m-handle svg{width:18px; height:18px}
+  .m-del{width:34px; height:34px; border-radius:8px; background:#fee2e2; color:#dc2626; border:1px solid #fecaca; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:18px; line-height:1}
   .m-del:hover{background:#fecaca}
-  .m-idx{
-    font-size:11px; color:var(--muted); width:24px; text-align:center; margin-top:2px;
-  }
-
-  .empty-state{
-    text-align:center; padding:48px 20px; color:var(--muted);
-  }
+  .m-idx{font-size:11px; color:var(--muted); text-align:center; margin-top:2px}
+  .empty-state{text-align:center; padding:48px 20px; color:var(--muted)}
   .empty-state .ico{font-size:42px; margin-bottom:8px}
 
-  /* scrollbar */
-  ::-webkit-scrollbar{width:10px; height:10px}
-  ::-webkit-scrollbar-thumb{background:#cbd2dc; border-radius:6px; border:2px solid var(--bg)}
+  /* ===== Tag color palette (31 tags grouped) ===== */
+  /* 日常/铺垫/过渡/回忆 - 中性灰蓝 */
+  .tc-routine{background:#e0e7ef; color:#475569}
+  .tc-setup{background:#e0e7ef; color:#475569}
+  .tc-bridge{background:#e0e7ef; color:#475569}
+  .tc-memory{background:#e0e7ef; color:#475569}
+  /* 搞笑 - 橙黄 */
+  .tc-funny{background:#fef3c7; color:#b45309}
+  /* 经营/职场/升级/奖励/消费/入住 - 蓝绿 */
+  .tc-biz{background:#dbeafe; color:#1d4ed8}
+  .tc-work{background:#dbeafe; color:#1d4ed8}
+  .tc-levelup{background:#d1fae5; color:#047857}
+  .tc-reward{background:#d1fae5; color:#047857}
+  .tc-spend{background:#dbeafe; color:#1d4ed8}
+  .tc-movein{background:#d1fae5; color:#047857}
+  /* 感情线/暧昧/邂逅/误会 - 粉红 */
+  .tc-love{background:#fce7f3; color:#be185d}
+  .tc-flirt{background:#fce7f3; color:#be185d}
+  .tc-meet{background:#fce7f3; color:#be185d}
+  .tc-misunderstand{background:#fce7f3; color:#be185d}
+  /* 系统/任务/直播/福利/揭秘 - 紫 */
+  .tc-system{background:#ede9fe; color:#6d28d9}
+  .tc-task{background:#ede9fe; color:#6d28d9}
+  .tc-stream{background:#ede9fe; color:#6d28d9}
+  .tc-perk{background:#ede9fe; color:#6d28d9}
+  .tc-reveal{background:#ede9fe; color:#6d28d9}
+  /* 爽点/打脸/高潮/冲突/危机/反转/开局 - 红 */
+  .tc-cool{background:#fee2e2; color:#b91c1c}
+  .tc-facepalm{background:#fee2e2; color:#b91c1c}
+  .tc-climax{background:#fee2e2; color:#b91c1c}
+  .tc-conflict{background:#fee2e2; color:#b91c1c}
+  .tc-crisis{background:#fee2e2; color:#b91c1c}
+  .tc-twist{background:#fee2e2; color:#b91c1c}
+  .tc-opening{background:#fee2e2; color:#b91c1c}
+  /* 校园/旅行/回归 - 青蓝 */
+  .tc-campus{background:#cffafe; color:#0e7490}
+  .tc-travel{background:#cffafe; color:#0e7490}
+  .tc-return{background:#cffafe; color:#0e7490}
+  /* 展示 - 琥珀 */
+  .tc-show{background:#fef3c7; color:#b45309}
+
+  /* scrollbars */
+  ::-webkit-scrollbar{width:8px; height:8px}
+  ::-webkit-scrollbar-thumb{background:#cbd2dc; border-radius:6px}
   ::-webkit-scrollbar-thumb:hover{background:#aab2bf}
   ::-webkit-scrollbar-track{background:transparent}
 
+  /* mobile */
   @media (max-width:760px){
-    .workspace{grid-template-columns:1fr; height:auto; overflow:auto}
-    .column{height:520px}
+    .workspace{grid-template-columns:1fr; gap:10px}
+    .column{max-height:none}
+    .column.l{height:auto}
+    .column.r{height:auto}
+    .font-ctl span{display:none}
+    .topbar{flex-wrap:wrap}
+    .topbar h1{font-size:15px}
   }
+  .no-res{user-select:none}
 </style>
 </head>
 <body>
 
 <div class="topbar">
-  <h1>📚 章节合并工具</h1>
+  <h1 id="logo">📚 章节工具</h1>
   <span class="sel-count" id="totalSel">已选 0</span>
   <div class="spacer"></div>
-  <button class="btn ghost" id="clearAllBtn">清空全部</button>
-  <button class="btn primary" id="mergeBtn" disabled>合并已选 →</button>
+  <div class="font-ctl no-res">
+    <button id="fontMinus" aria-label="缩小字号">A−</button>
+    <span id="fontLabel">15</span>
+    <button id="fontPlus" aria-label="放大字号">A+</button>
+  </div>
+  <button class="btn ghost sm" id="cartBtn">🛒 合并 <span id="cartCount">0</span></button>
 </div>
 
-<div class="workspace">
-  <!-- LEFT -->
-  <div class="column" data-side="l">
-    <div class="col-head">
-      <div class="tag l">A</div>
-      <div class="title" id="title-l">未上传</div>
-      <div class="meta" id="meta-l"></div>
-      <div class="col-actions">
-        <button class="btn ghost" data-up="l">上传</button>
-        <button class="btn ghost" data-clear="l" style="display:none">清除</button>
-      </div>
-    </div>
-    <div class="dropzone" id="drop-l">
-      <div class="big">📄</div>
-      <div>点击或拖拽上传文档</div>
-      <div class="hint">支持 .md / .txt，以 # 开头作为章节分隔</div>
-      <input type="file" id="file-l" accept=".md,.txt,text/markdown,text/plain">
-    </div>
-    <div class="doc-list" id="list-l" style="display:none"></div>
+<!-- ===== HOME VIEW ===== -->
+<div class="view active" id="view-home">
+  <div class="hero">
+    <div class="ico">📂</div>
+    <h2>文档库</h2>
+    <p>上传小说概括，自动按标签分类整理</p>
   </div>
-
-  <!-- RIGHT -->
-  <div class="column" data-side="r">
-    <div class="col-head">
-      <div class="tag r">B</div>
-      <div class="title" id="title-r">未上传</div>
-      <div class="meta" id="meta-r"></div>
-      <div class="col-actions">
-        <button class="btn ghost" data-up="r">上传</button>
-        <button class="btn ghost" data-clear="r" style="display:none">清除</button>
-      </div>
-    </div>
-    <div class="dropzone" id="drop-r">
-      <div class="big">📄</div>
-      <div>点击或拖拽上传文档</div>
-      <div class="hint">支持 .md / .txt，以 # 开头作为章节分隔</div>
-      <input type="file" id="file-r" accept=".md,.txt,text/markdown,text/plain">
-    </div>
-    <div class="doc-list" id="list-r" style="display:none"></div>
+  <div class="dropzone" id="homeDrop">
+    <div class="big">📄</div>
+    <div>点击或拖拽上传文档</div>
+    <div style="font-size:12px; margin-top:4px">支持 .md / .txt，以 # 作为章节分隔</div>
+    <input type="file" id="homeFile" accept=".md,.txt,text/markdown,text/plain" multiple>
+  </div>
+  <div class="doc-lib" id="docLib"></div>
+  <div class="tag-section" id="tagSection" style="display:none">
+    <h3>🏷️ 按标签分类（点击筛选章节）</h3>
+    <div class="tag-cloud" id="tagCloud"></div>
   </div>
 </div>
 
-<!-- MERGE OVERLAY -->
+<!-- ===== TAG RESULT VIEW ===== -->
+<div class="view" id="view-tag">
+  <div class="back-row">
+    <button class="btn ghost sm" id="tagBack">← 返回</button>
+    <h2 id="tagViewTitle">标签筛选</h2>
+  </div>
+  <div id="tagResultList"></div>
+</div>
+
+<!-- ===== DOC VIEW ===== -->
+<div class="view" id="view-doc">
+  <div class="back-row">
+    <button class="btn ghost sm" id="docBack">← 返回</button>
+    <h2 id="docViewTitle">文档</h2>
+  </div>
+  <div id="docViewList"></div>
+</div>
+
+<!-- ===== WORKSPACE VIEW ===== -->
+<div class="view" id="view-workspace">
+  <div class="workspace">
+    <div class="column l" data-side="l">
+      <div class="col-head">
+        <div class="tag l">A</div>
+        <div class="title" id="title-l">未上传</div>
+        <div class="meta" id="meta-l"></div>
+        <div class="col-actions">
+          <button class="btn ghost sm" data-up="l">上传</button>
+          <button class="btn ghost sm" data-clear="l" style="display:none">清除</button>
+        </div>
+      </div>
+      <div class="col-drop" id="drop-l">
+        <div class="big">📄</div>
+        <div>点击或拖拽上传</div>
+        <input type="file" id="file-l" accept=".md,.txt,text/markdown,text/plain">
+      </div>
+      <div class="doc-list" id="list-l" style="display:none"></div>
+    </div>
+    <div class="column r" data-side="r">
+      <div class="col-head">
+        <div class="tag r">B</div>
+        <div class="title" id="title-r">未上传</div>
+        <div class="meta" id="meta-r"></div>
+        <div class="col-actions">
+          <button class="btn ghost sm" data-up="r">上传</button>
+          <button class="btn ghost sm" data-clear="r" style="display:none">清除</button>
+        </div>
+      </div>
+      <div class="col-drop" id="drop-r">
+        <div class="big">📄</div>
+        <div>点击或拖拽上传</div>
+        <input type="file" id="file-r" accept=".md,.txt,text/markdown,text/plain">
+      </div>
+      <div class="doc-list" id="list-r" style="display:none"></div>
+    </div>
+  </div>
+  <div style="text-align:center; margin-top:12px">
+    <button class="btn primary" id="mergeBtn" disabled>合并已选 →</button>
+  </div>
+</div>
+
+<!-- ===== MERGE OVERLAY ===== -->
 <div class="overlay" id="overlay">
   <div class="merge-panel">
     <div class="merge-head">
-      <h2>合并预览 <span id="mergeCount" class="sel-count">0</span></h2>
+      <h2>合并预览 <span class="sel-count" id="mergeCount">0</span></h2>
       <div class="spacer"></div>
-      <button class="btn ghost" id="exportBtn">导出 .md</button>
-      <button class="btn ghost" id="copyBtn">复制全部</button>
-      <button class="btn" id="closeMergeBtn">返回选择</button>
+      <button class="btn ghost sm" id="exportBtn">导出 .md</button>
+      <button class="btn ghost sm" id="copyBtn">复制全部</button>
+      <button class="btn sm" id="closeMergeBtn">返回</button>
     </div>
     <div class="merge-body" id="mergeBody"></div>
     <div class="merge-foot">
-      <div class="hint">提示：拖动右侧 <span style="font-weight:600">⋮⋮</span> 把手上下移动可排序，点击 ✕ 删除章节</div>
-      <button class="btn ghost" id="clearMergeBtn">清空合并区</button>
+      <div class="hint">拖动右侧 <b>⋮⋮</b> 把手排序，✕ 删除</div>
+      <button class="btn ghost sm" id="clearMergeBtn">清空合并区</button>
     </div>
   </div>
 </div>
 
 <script>
-/* ============ State ============ */
-const state = { l:{title:'',chaps:[],selected:new Set()}, r:{title:'',chaps:[],selected:new Set()} };
-const mergeList = []; // {side,id,title,body,tags}
+/* =========================================================
+ * 31-tag taxonomy
+ * key: canonical short tag (for class prefix), label, keywords
+ * ========================================================= */
+const TAG_DEFS = [
+  {k:'routine',  label:'日常',  cls:'tc-routine',   words:['日常','生活','烟火','县城物价','日常','买菜','吃饭','早餐','叙旧','做客']},
+  {k:'setup',    label:'铺垫',  cls:'tc-setup',     words:['铺垫','背景','介绍','出现','搬','收到','得知','发现','认识','相识']},
+  {k:'funny',    label:'搞笑',  cls:'tc-funny',     words:['搞笑','吐槽','笑疯','笑死','哭笑不得','尴尬','闹剧','乌龙','滑稽','整蛊','雷人']},
+  {k:'biz',      label:'经营',  cls:'tc-biz',       words:['经营','超市','生意','酒店','瑜伽馆','开工','翻新','基金会','工程','合同','施工']},
+  {k:'flirt',    label:'暧昧',  cls:'tc-flirt',     words:['暧昧','调情','心动','公主抱','接吻','亲吻','温存','心跳','撒娇','撩','甜蜜','相拥','撒娇','放电']},
+  {k:'love',     label:'感情线',cls:'tc-love',     words:['感情线','恋爱','表白','约会','见家长','撮合','姻缘','相处','女友','男友','情侣','结婚','求婚']},
+  {k:'system',   label:'系统',  cls:'tc-system',    words:['系统','外挂','助力','升级','激活','双倍返现','入账','失业补助','被动收入','躺赚']},
+  {k:'cool',     label:'爽点',  cls:'tc-cool',      words:['爽点','装逼','排面','拿捏','霸气','底气','碾压','震撼','风光','排场','气派']},
+  {k:'show',     label:'展示',  cls:'tc-show',      words:['展示','晒','开光','新车','新车到货','试驾','亮相','豪车','牌照','车牌','存款','手表']},
+  {k:'conflict', label:'冲突',  cls:'tc-conflict',  words:['冲突','对峙','翻脸','撕破脸','吵架','质问','上门','闹事','威胁','硬刚','对骂']},
+  {k:'facepalm', label:'打脸',  cls:'tc-facepalm',  words:['打脸','社死','破防','翻车','反杀','现形','败露','吃瘪','打脸','教训','反噬','真面目']},
+  {k:'climax',   label:'高潮',  cls:'tc-climax',   words:['高潮','爆发','群殴','揪出','揭露','当众拆穿','大戏上演','社死','翻盘']},
+  {k:'crisis',   label:'危机',  cls:'tc-crisis',    words:['危机','自杀','赌债','被讹','车祸','受伤','欠债','追债','威胁','绑架','出事','住院']},
+  {k:'work',     label:'职场',  cls:'tc-work',      words:['职场','辞职','裁员','面试','主管','老板','PUA','打工','上班','工作','同事','退休']},
+  {k:'reward',   label:'奖励',  cls:'tc-reward',    words:['奖励','送','谢礼','赠','犒劳','股份','红包','彩礼','礼物','金条','兰博基尼']},
+  {k:'levelup',  label:'升级',  cls:'tc-levelup',   words:['升级','体质','突破','提升','增长','加强','进步','蜕变','成长','进化']},
+  {k:'stream',   label:'直播',  cls:'tc-stream',    words:['直播','网红','粉丝','账号','封禁','视频','爆火','热搜','流量']},
+  {k:'meet',     label:'邂逅',  cls:'tc-meet',     words:['邂逅','偶遇','重逢','相遇','再见','重逢','加好友','搭讪']},
+  {k:'campus',   label:'校园',  cls:'tc-campus',    words:['校园','学校','学生','同学','大学','学姐','辅导员','保研','偷耳机','考试']},
+  {k:'task',     label:'任务',  cls:'tc-task',      words:['任务','搞定','解决','处理','安排','出面','帮忙','搞定','搞定']},
+  {k:'twist',    label:'反转',  cls:'tc-twist',     words:['反转','没想到','竟然','原来','不料','转折','意外','打脸反转','真相反转']},
+  {k:'opening',  label:'开局',  cls:'tc-opening',   words:['开局','回乡','返乡','裁员','被裁','回到','开始','踏上','启程','开篇','第一章']},
+  {k:'spend',    label:'消费',  cls:'tc-spend',     words:['消费','买','全款','订车','买房','别墅','购物','奢侈','始祖鸟','百达翡丽','金条','定期','存款','购车','充值','消费']},
+  {k:'reveal',   label:'揭秘',  cls:'tc-reveal',    words:['揭秘','真相','发现','查清','调查','曝光','揭穿','揭开','秘密','宝藏','密室']},
+  {k:'travel',   label:'旅行',  cls:'tc-travel',    words:['旅行','登山','爬山','温泉','滑冰','越野','探险','防空洞','道观','游玩','出游','演唱会']},
+  {k:'perk',     label:'福利',  cls:'tc-perk',      words:['福利','五险一金','升职','加薪','奖学金','公积金','待遇','保险','奖金']},
+  {k:'movein',   label:'入住',  cls:'tc-movein',   words:['入住','搬家','收房','别墅','新房','乔迁','安家','落户口']},
+  {k:'return',   label:'回归',  cls:'tc-return',   words:['回归','回乡','返乡','辞职回','老家','回龙华县','帝都回']},
+  {k:'memory',   label:'回忆',  cls:'tc-memory',    words:['回忆','小时候','童年','初中','大学','过去','当年','往事','旧事']},
+  {k:'misunderstand', label:'误会', cls:'tc-misunderstand', words:['误会','误解','冤枉','搞错','以为','错怪','乌龙','辨清']},
+  {k:'bridge',   label:'过渡',  cls:'tc-bridge',    words:['过渡','准备','计划','打算','商量','考虑','聊','叙','简单','随后','之后']},
+];
 
-/* ============ Parse markdown-like text into chapters ============ */
+/* =========================================================
+ * State (localStorage persisted)
+ * docs: [{id, title, chaps:[{title,body,tags:[],tagSet:Set-like}]}]
+ * cart: Set of "docId:idx"
+ * ========================================================= */
+const LS_KEY = 'chapterToolDocs_v1';
+const LS_FONT = 'chapterToolFont_v1';
+const LS_CART = 'chapterToolCart_v1';
+
+let docs = loadDocs();
+let cart = loadCart(); // array of "docId:idx"
+
+function loadDocs(){
+  try{ return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); }
+  catch{ return []; }
+}
+function saveDocs(){ localStorage.setItem(LS_KEY, JSON.stringify(docs)); }
+function loadCart(){
+  try{ return JSON.parse(localStorage.getItem(LS_CART) || '[]'); }
+  catch{ return []; }
+}
+function saveCart(){ localStorage.setItem(LS_CART, JSON.stringify(cart)); }
+
+/* font size */
+let fontPx = parseInt(localStorage.getItem(LS_FONT) || '15', 10);
+function applyFont(){
+  document.documentElement.style.setProperty('--font-size', fontPx+'px');
+  document.getElementById('fontLabel').textContent = fontPx;
+}
+document.getElementById('fontPlus').addEventListener('click', ()=>{ fontPx = Math.min(22, fontPx+1); applyFont(); localStorage.setItem(LS_FONT, fontPx); });
+document.getElementById('fontMinus').addEventListener('click', ()=>{ fontPx = Math.max(11, fontPx-1); applyFont(); localStorage.setItem(LS_FONT, fontPx); });
+applyFont();
+
+/* =========================================================
+ * Parse uploaded doc -> chapters with auto-tags
+ * ========================================================= */
 function parseDoc(text, filename){
-  // strip a possible book-name / author header before first #
   const lines = text.replace(/\r\n?/g,'\n').split('\n');
   const chaps = [];
   let cur = null;
@@ -251,8 +403,7 @@ function parseDoc(text, filename){
   for(const line of lines){
     if(/^#{1,6}\s/.test(line)){
       if(cur) chaps.push(cur);
-      const raw = line.replace(/^#+\s*/, '');
-      cur = { title: raw.trim(), body: [], tags:'' };
+      cur = { title: line.replace(/^#+\s*/, '').trim(), body:[], rawTags:'' };
     } else if(cur){
       cur.body.push(line);
     } else {
@@ -260,202 +411,397 @@ function parseDoc(text, filename){
     }
   }
   if(cur) chaps.push(cur);
-  // finalize: extract 标签： line, trim body
+
+  let title = filename.replace(/\.(md|txt)$/i,'');
+  const nm = preface.join('\n').match(/书名[:：]\s*(.+)$/m);
+  if(nm) title = nm[1].trim();
+
   chaps.forEach(c=>{
     const bodyTxt = c.body.join('\n');
     const tagMatch = bodyTxt.match(/标签[:：]\s*(.+)$/m);
-    c.tags = tagMatch ? tagMatch[1].trim() : '';
+    c.rawTags = tagMatch ? tagMatch[1].trim() : '';
     c.body = bodyTxt.replace(/标签[:：]\s*.+$/m, '').trim();
+    c.tags = autoTag(c.title + ' ' + c.body + ' ' + c.rawTags);
   });
-  // Try to read a title from preface (书名：xxx)
-  let title = filename.replace(/\.(md|txt)$/i,'');
-  const nameMatch = preface.join('\n').match(/书名[:：]\s*(.+)$/m);
-  if(nameMatch) title = nameMatch[1].trim();
   return { title, chaps };
 }
 
-/* ============ Render document list ============ */
-function renderSide(side){
-  const s = state[side];
+function autoTag(text){
+  const lower = text.toLowerCase();
+  const hits = new Set();
+  for(const def of TAG_DEFS){
+    for(const w of def.words){
+      if(lower.includes(w.toLowerCase())){ hits.add(def.k); break; }
+    }
+  }
+  // fallback: if nothing matched, mark 'routine'
+  if(hits.size === 0) hits.add('routine');
+  return [...hits];
+}
+
+function tagDef(k){ return TAG_DEFS.find(d=>d.k===k); }
+function tagChipHTML(k, count){
+  const d = tagDef(k);
+  return `<span class="tag-chip ${d.cls}" data-tag="${k}">${d.label}${count!=null?`<span class="n">${count}</span>`:''}</span>`;
+}
+
+/* =========================================================
+ * Render Home: doc library + tag cloud
+ * ========================================================= */
+function renderHome(){
+  const lib = document.getElementById('docLib');
+  lib.innerHTML = '';
+  if(docs.length === 0){
+    lib.innerHTML = `<div style="text-align:center; color:var(--muted); padding:30px 16px">还没有文档，上传一个试试 ↑</div>`;
+    document.getElementById('tagSection').style.display = 'none';
+    return;
+  }
+
+  // tag counts across all docs
+  const tagCount = {};
+  docs.forEach(doc=>{
+    doc.chaps.forEach(c=> c.tags.forEach(k=>{ tagCount[k] = (tagCount[k]||0)+1; }));
+  });
+  const sortedTags = Object.keys(tagCount).sort((a,b)=> tagCount[b]-tagCount[a]);
+
+  // doc cards
+  docs.forEach(doc=>{
+    const card = document.createElement('div');
+    card.className = 'doc-card';
+    card.innerHTML = `
+      <div class="info">
+        <div class="t">${escapeHtml(doc.title)}</div>
+        <div class="m">${doc.chaps.length} 章 · ${cart.filter(x=>x.startsWith(doc.id+':')).length} 已选入合并</div>
+      </div>
+      <div class="act">
+        <button class="btn sm" data-open-doc="${doc.id}">查看</button>
+        <button class="btn sm" data-send-ws="${doc.id}">→双列</button>
+        <button class="btn sm del" data-del-doc="${doc.id}">删</button>
+      </div>`;
+    lib.appendChild(card);
+  });
+
+  // tag cloud
+  const cloud = document.getElementById('tagCloud');
+  cloud.innerHTML = sortedTags.map(k=> tagChipHTML(k, tagCount[k])).join('') ||
+    `<span style="color:var(--muted)">无标签</span>`;
+  document.getElementById('tagSection').style.display = '';
+}
+
+/* =========================================================
+ * View switching
+ * ========================================================= */
+function showView(id){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+id).classList.add('active');
+  window.scrollTo(0,0);
+}
+document.getElementById('logo').addEventListener('click', ()=>{ showView('home'); renderHome(); });
+
+/* =========================================================
+ * Upload to library (home)
+ * ========================================================= */
+function setupHomeDrop(){
+  const dz = document.getElementById('homeDrop');
+  const inp = document.getElementById('homeFile');
+  dz.addEventListener('click', ()=> inp.click());
+  ['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev, e=>{e.preventDefault(); dz.classList.add('drag');}));
+  ['dragleave','drop'].forEach(ev=>dz.addEventListener(ev, e=>{e.preventDefault(); dz.classList.remove('drag');}));
+  dz.addEventListener('drop', e=>{
+    [...e.dataTransfer.files].forEach(f=> loadToLib(f));
+  });
+  inp.addEventListener('change', ()=>{
+    [...inp.files].forEach(f=> loadToLib(f));
+    inp.value = '';
+  });
+}
+function loadToLib(file){
+  const r = new FileReader();
+  r.onload = ()=>{
+    const {title, chaps} = parseDoc(r.result, file.name);
+    docs.push({ id: 'd'+Date.now()+Math.random().toString(36).slice(2,6), title, chaps });
+    saveDocs(); renderHome();
+  };
+  r.readAsText(file, 'UTF-8');
+}
+setupHomeDrop();
+
+/* event delegation on docLib */
+document.getElementById('docLib').addEventListener('click', e=>{
+  const open = e.target.closest('[data-open-doc]');
+  const send = e.target.closest('[data-send-ws]');
+  const del = e.target.closest('[data-del-doc]');
+  if(open){ openDoc(open.dataset.openDoc); }
+  if(send){ sendToWorkspace(send.dataset.sendWs); }
+  if(del){
+    if(!confirm('删除这个文档？')) return;
+    const id = del.dataset.delDoc;
+    docs = docs.filter(d=>d.id!==id);
+    cart = cart.filter(x=>!x.startsWith(id+':'));
+    saveDocs(); saveCart(); updateCartBadge(); renderHome();
+  }
+});
+
+/* =========================================================
+ * Tag cloud click -> tag result view
+ * ========================================================= */
+document.getElementById('tagCloud').addEventListener('click', e=>{
+  const chip = e.target.closest('[data-tag]');
+  if(!chip) return;
+  openTag(chip.dataset.tag);
+});
+function openTag(tagKey){
+  const def = tagDef(tagKey);
+  document.getElementById('tagViewTitle').innerHTML =
+    `<span class="tag-chip ${def.cls}">${def.label}</span> 相关章节`;
+  const list = document.getElementById('tagResultList');
+  list.innerHTML = '';
+  let total = 0;
+  docs.forEach(doc=>{
+    doc.chaps.forEach((c, i)=>{
+      if(c.tags.includes(tagKey)){
+        total++;
+        const inCart = cart.includes(doc.id+':'+i);
+        const div = document.createElement('div');
+        div.className = 'chap' + (inCart?' sel':'');
+        div.innerHTML = chapRowHTML(doc, i, inCart, true);
+        list.appendChild(div);
+      }
+    });
+  });
+  if(total===0) list.innerHTML = `<div class="empty-state"><div class="ico">🏷️</div>没有该标签的章节</div>`;
+  showView('tag');
+}
+
+/* =========================================================
+ * Open a whole doc to view
+ * ========================================================= */
+function openDoc(docId){
+  const doc = docs.find(d=>d.id===docId);
+  if(!doc) return;
+  document.getElementById('docViewTitle').textContent = doc.title;
+  const list = document.getElementById('docViewList');
+  list.innerHTML = '';
+  doc.chaps.forEach((c,i)=>{
+    const inCart = cart.includes(doc.id+':'+i);
+    const div = document.createElement('div');
+    div.className = 'chap' + (inCart?' sel':'');
+    div.innerHTML = chapRowHTML(doc, i, inCart, true);
+    list.appendChild(div);
+  });
+  showView('doc');
+}
+
+function chapRowHTML(doc, i, inCart, showSource){
+  const c = doc.chaps[i];
+  const tagsHTML = c.tags.map(k=>{
+    const d = tagDef(k);
+    return `<span class="tag-chip ${d.cls}" style="cursor:default; padding:3px 9px; font-size:11px">${d.label}</span>`;
+  }).join('');
+  return `
+    <div class="chap-row" data-cart="${doc.id}:${i}">
+      <input type="checkbox" class="cb" ${inCart?'checked':''}>
+      <div class="chap-main">
+        <div class="chap-title">${escapeHtml(c.title)}</div>
+        ${c.body?`<div class="chap-body">${escapeHtml(c.body)}</div>`:''}
+        <div class="chap-tagline">${tagsHTML}</div>
+      </div>
+    </div>`;
+}
+
+/* event delegation for chap rows (cart toggle) — tag view & doc view */
+function bindChapClick(container){
+  container.addEventListener('click', e=>{
+    const row = e.target.closest('[data-cart]');
+    if(!row) return;
+    const key = row.dataset.cart;
+    const idx = cart.indexOf(key);
+    if(idx>=0) cart.splice(idx,1);
+    else cart.push(key);
+    saveCart(); updateCartBadge();
+    const chap = row.closest('.chap');
+    const cb = row.querySelector('.cb');
+    if(idx>=0){ chap.classList.remove('sel'); cb.checked=false; }
+    else { chap.classList.add('sel'); cb.checked=true; }
+  });
+}
+bindChapClick(document.getElementById('tagResultList'));
+bindChapClick(document.getElementById('docViewList'));
+
+document.getElementById('tagBack').addEventListener('click', ()=>{ showView('home'); renderHome(); });
+document.getElementById('docBack').addEventListener('click', ()=>{ showView('home'); renderHome(); });
+
+/* =========================================================
+ * Cart badge + merge from cart
+ * ========================================================= */
+function updateCartBadge(){
+  document.getElementById('cartCount').textContent = cart.length;
+  document.getElementById('totalSel').textContent = `已选 ${cart.length}`;
+  document.getElementById('mergeBtn').disabled = cart.length === 0;
+}
+updateCartBadge();
+
+document.getElementById('cartBtn').addEventListener('click', ()=>{
+  if(cart.length===0){ alert('合并购物车为空，先在文档/标签页勾选章节'); return; }
+  openMergeFromCart();
+});
+
+/* =========================================================
+ * Workspace view (two-column quick upload — independent of library)
+ * ========================================================= */
+const ws = { l:{title:'',chaps:[]}, r:{title:'',chaps:[]} };
+
+function sendToWorkspace(docId){
+  const doc = docs.find(d=>d.id===docId);
+  if(!doc) return;
+  // pick side: l if empty else r if empty else ask
+  let side = ws.l.chaps.length===0 ? 'l' : (ws.r.chaps.length===0 ? 'r' : null);
+  if(!side){
+    side = confirm('左侧已占用，放入右侧？(取消=左侧)') ? 'r' : 'l';
+  }
+  ws[side] = { title: doc.title, chaps: doc.chaps.map(c=>({...c})) };
+  renderWorkspaceSide(side);
+  showView('workspace');
+}
+function renderWorkspaceSide(side){
   const drop = document.getElementById('drop-'+side);
   const list = document.getElementById('list-'+side);
   const titleEl = document.getElementById('title-'+side);
   const metaEl = document.getElementById('meta-'+side);
   const clearBtn = document.querySelector(`[data-clear="${side}"]`);
-
-  if(s.chaps.length === 0){
-    drop.style.display = 'flex';
-    list.style.display = 'none';
-    titleEl.textContent = '未上传';
-    metaEl.textContent = '';
-    clearBtn.style.display = 'none';
+  if(ws[side].chaps.length===0){
+    drop.style.display='flex'; list.style.display='none';
+    titleEl.textContent='未上传'; metaEl.textContent=''; clearBtn.style.display='none';
     return;
   }
-  drop.style.display = 'none';
-  list.style.display = 'block';
-  titleEl.textContent = s.title;
-  metaEl.textContent = `${s.chaps.length} 章 · 已选 ${s.selected.size}`;
-  clearBtn.style.display = '';
-
-  list.innerHTML = '';
-  s.chaps.forEach((c, i)=>{
-    const id = i;
-    const sel = s.selected.has(id);
-    const div = document.createElement('div');
-    div.className = 'chap' + (sel?' sel':'');
-    div.innerHTML = `
-      <div class="chap-row" data-side="${side}" data-id="${id}">
-        <input type="checkbox" class="cb" ${sel?'checked':''}>
-        <div style="flex:1;min-width:0">
-          <div class="chap-title">${escapeHtml(c.title)}</div>
-          ${c.body ? `<div class="chap-body">${escapeHtml(c.body)}</div>`:''}
-          ${c.tags ? `<div class="chap-tags">标签：${escapeHtml(c.tags)}</div>`:''}
-        </div>
-      </div>`;
-    list.appendChild(div);
-  });
+  drop.style.display='none'; list.style.display='block';
+  titleEl.textContent = ws[side].title;
+  metaEl.textContent = `${ws[side].chaps.length} 章`;
+  clearBtn.style.display='';
+  list.innerHTML = ws[side].chaps.map((c,i)=>{
+    const inCart = cart.includes('ws:'+side+':'+i);
+    return `<div class="chap${inCart?' sel':''}">${chapRowHTMLWS(side, i, inCart)}</div>`;
+  }).join('');
 }
-
-function escapeHtml(s){
-  return (s||'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+function chapRowHTMLWS(side, i, inCart){
+  const c = ws[side].chaps[i];
+  const tagsHTML = c.tags.map(k=>{
+    const d = tagDef(k);
+    return `<span class="tag-chip ${d.cls}" style="cursor:default; padding:3px 9px; font-size:11px">${d.label}</span>`;
+  }).join('');
+  return `
+    <div class="chap-row" data-cart="ws:${side}:${i}">
+      <input type="checkbox" class="cb" ${inCart?'checked':''}>
+      <div class="chap-main">
+        <div class="chap-title">${escapeHtml(c.title)}</div>
+        ${c.body?`<div class="chap-body">${escapeHtml(c.body)}</div>`:''}
+        <div class="chap-tagline">${tagsHTML}</div>
+      </div>
+    </div>`;
 }
-
-/* ============ Selection handling (event delegation) ============ */
-document.addEventListener('click', e=>{
-  const row = e.target.closest('.chap-row');
-  if(!row) return;
-  const side = row.dataset.side, id = +row.dataset.id;
-  const s = state[side];
-  // if clicking the checkbox itself, toggle; else also toggle (row acts as checkbox)
-  if(s.selected.has(id)) s.selected.delete(id);
-  else s.selected.add(id);
-  renderSide(side);
-  updateMergeBtn();
-});
-
-function updateMergeBtn(){
-  const total = state.l.selected.size + state.r.selected.size;
-  document.getElementById('totalSel').textContent = `已选 ${total}`;
-  document.getElementById('mergeBtn').disabled = total === 0;
-}
-
-/* ============ File upload (click + drag) ============ */
-function setupDrop(side){
+['l','r'].forEach(side=>{
   const drop = document.getElementById('drop-'+side);
-  const input = document.getElementById('file-'+side);
+  const inp = document.getElementById('file-'+side);
   const upBtn = document.querySelector(`[data-up="${side}"]`);
-
-  const pick = ()=>input.click();
-  drop.addEventListener('click', pick);
-  upBtn.addEventListener('click', e=>{e.stopPropagation(); input.click();});
-
-  ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev, e=>{
-    e.preventDefault(); drop.classList.add('drag');
-  }));
-  ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev, e=>{
-    e.preventDefault(); drop.classList.remove('drag');
-  }));
+  upBtn.addEventListener('click', e=>{ e.stopPropagation(); inp.click(); });
+  drop.addEventListener('click', ()=> inp.click());
+  ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev, e=>{e.preventDefault(); drop.classList.add('drag');}));
+  ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev, e=>{e.preventDefault(); drop.classList.remove('drag');}));
   drop.addEventListener('drop', e=>{
-    const f = e.dataTransfer.files[0];
-    if(f) loadFile(side, f);
+    const f = e.dataTransfer.files[0]; if(f) loadWS(side, f);
   });
-  input.addEventListener('change', ()=>{
-    if(input.files[0]) loadFile(side, input.files[0]);
-    input.value = '';
-  });
-
-  const clearBtn = document.querySelector(`[data-clear="${side}"]`);
-  clearBtn.addEventListener('click', e=>{
+  inp.addEventListener('change', ()=>{ if(inp.files[0]) loadWS(side, inp.files[0]); inp.value=''; });
+  document.querySelector(`[data-clear="${side}"]`).addEventListener('click', e=>{
     e.stopPropagation();
-    state[side] = {title:'',chaps:[],selected:new Set()};
-    renderSide(side); updateMergeBtn();
+    ws[side] = {title:'',chaps:[]};
+    cart = cart.filter(x=>!x.startsWith('ws:'+side+':'));
+    saveCart(); updateCartBadge(); renderWorkspaceSide(side);
   });
-}
-function loadFile(side, file){
-  const reader = new FileReader();
-  reader.onload = ()=>{
-    const {title, chaps} = parseDoc(reader.result, file.name);
-    state[side] = {title, chaps, selected:new Set()};
-    renderSide(side); updateMergeBtn();
-  };
-  reader.readAsText(file, 'UTF-8');
-}
-setupDrop('l'); setupDrop('r');
-
-/* ============ Clear all ============ */
-document.getElementById('clearAllBtn').addEventListener('click', ()=>{
-  if(!confirm('确定清空两边文档与所有已选？')) return;
-  state.l = {title:'',chaps:[],selected:new Set()};
-  state.r = {title:'',chaps:[],selected:new Set()};
-  renderSide('l'); renderSide('r'); updateMergeBtn();
 });
+function loadWS(side, file){
+  const r = new FileReader();
+  r.onload = ()=>{
+    const {title, chaps} = parseDoc(r.result, file.name);
+    ws[side] = {title, chaps};
+    renderWorkspaceSide(side);
+  };
+  r.readAsText(file, 'UTF-8');
+}
+['list-l','list-r'].forEach(id=> bindChapClick(document.getElementById(id)));
 
-/* ============ Merge ============ */
-document.getElementById('mergeBtn').addEventListener('click', openMerge);
+/* =========================================================
+ * Merge overlay (from cart; sources can be library docs or ws)
+ * ========================================================= */
+let mergeList = []; // {srcLabel, title, body, tags}
 
-function openMerge(){
-  mergeList.length = 0;
-  // preserve selection order by index (ascending) per side; A first then B
-  state.l.chaps.forEach((c,i)=>{ if(state.l.selected.has(i)) mergeList.push({side:'l',id:i,title:c.title,body:c.body,tags:c.tags}); });
-  state.r.chaps.forEach((c,i)=>{ if(state.r.selected.has(i)) mergeList.push({side:'r',id:i,title:c.title,body:c.body,tags:c.tags}); });
+function openMergeFromCart(){
+  mergeList = cart.map(key=>{
+    if(key.startsWith('ws:')){
+      const [,side,i] = key.split(':');
+      const c = ws[side].chaps[+i];
+      return { srcLabel: (side==='l'?'A ':'B ')+ws[side].title, srcSide:side, title:c.title, body:c.body, tags:c.tags };
+    } else {
+      const [docId, i] = key.split(':');
+      const doc = docs.find(d=>d.id===docId);
+      if(!doc) return null;
+      const c = doc.chaps[+i];
+      return { srcLabel: doc.title, srcSide:docId, title:c.title, body:c.body, tags:c.tags };
+    }
+  }).filter(Boolean);
   renderMerge();
   document.getElementById('overlay').classList.add('show');
 }
-document.getElementById('closeMergeBtn').addEventListener('click', ()=>{
-  document.getElementById('overlay').classList.remove('show');
-});
+
+document.getElementById('mergeBtn').addEventListener('click', openMergeFromCart);
+document.getElementById('closeMergeBtn').addEventListener('click', ()=> document.getElementById('overlay').classList.remove('show'));
 
 function renderMerge(){
   const body = document.getElementById('mergeBody');
   document.getElementById('mergeCount').textContent = `${mergeList.length} 章`;
-  if(mergeList.length === 0){
-    body.innerHTML = `<div class="empty-state"><div class="ico">🗒️</div><div>合并区为空，返回选择章节后再合并</div></div>`;
-    return;
+  if(mergeList.length===0){
+    body.innerHTML = `<div class="empty-state"><div class="ico">🗒️</div>合并区为空</div>`; return;
   }
-  body.innerHTML = '';
-  mergeList.forEach((item, idx)=>{
-    const div = document.createElement('div');
-    div.className = 'm-item';
-    div.dataset.idx = idx;
-    div.innerHTML = `
-      <div class="m-content">
-        <span class="m-source ${item.side}">${item.side==='l'?'A 左文档':'B 右文档'}</span>
-        <div class="m-title">${escapeHtml(item.title)}</div>
-        ${item.body?`<div class="m-body">${escapeHtml(item.body)}</div>`:''}
-        ${item.tags?`<div class="m-tags">标签：${escapeHtml(item.tags)}</div>`:''}
-      </div>
-      <div class="m-actions">
-        <div class="m-handle" title="按住拖动排序">
-          <svg viewBox="0 0 16 16"><path fill="currentColor" d="M4 3h2v2H4zM8 3h2v2H8zM4 7h2v2H4zM8 7h2v2H8zM4 11h2v2H4zM8 11h2v2H8z"/></svg>
+  body.innerHTML = mergeList.map((it, idx)=>{
+    const tagsHTML = it.tags.map(k=>{
+      const d = tagDef(k);
+      return `<span class="tag-chip ${d.cls}" style="cursor:default; padding:3px 9px; font-size:11px">${d.label}</span>`;
+    }).join('');
+    const sideClass = it.srcSide==='l'||it.srcSide==='r' ? it.srcSide : 'l';
+    return `
+      <div class="m-item" data-idx="${idx}">
+        <div class="m-content">
+          <span class="m-source ${sideClass}">${escapeHtml(it.srcLabel)}</span>
+          <div class="m-title">${escapeHtml(it.title)}</div>
+          ${it.body?`<div class="m-body">${escapeHtml(it.body)}</div>`:''}
+          <div class="chap-tagline" style="margin-top:6px">${tagsHTML}</div>
         </div>
-        <button class="m-del" title="删除">✕</button>
-        <div class="m-idx">${idx+1}</div>
+        <div class="m-actions">
+          <div class="m-handle" title="拖动排序">
+            <svg viewBox="0 0 16 16"><path fill="currentColor" d="M4 3h2v2H4zM8 3h2v2H8zM4 7h2v2H4zM8 7h2v2H8zM4 11h2v2H4zM8 11h2v2H8z"/></svg>
+          </div>
+          <button class="m-del" title="删除">✕</button>
+          <div class="m-idx">${idx+1}</div>
+        </div>
       </div>`;
-    body.appendChild(div);
-  });
+  }).join('');
 }
 
-/* delete from merge */
 document.getElementById('mergeBody').addEventListener('click', e=>{
   const del = e.target.closest('.m-del');
   if(!del) return;
-  const item = del.closest('.m-item');
-  const idx = +item.dataset.idx;
+  const idx = +del.closest('.m-item').dataset.idx;
   mergeList.splice(idx,1);
   renderMerge();
 });
+document.getElementById('clearMergeBtn').addEventListener('click', ()=>{ mergeList.length=0; renderMerge(); });
 
-/* clear merge */
-document.getElementById('clearMergeBtn').addEventListener('click', ()=>{
-  mergeList.length = 0; renderMerge();
-});
-
-/* ============ Drag-to-reorder (mouse + touch) ============ */
+/* =========================================================
+ * Drag-to-reorder (pointer events; works mouse+touch)
+ * ========================================================= */
 (function(){
-  let dragIdx = null, dragEl = null, placeholder = null, offsetY = 0;
+  let dragIdx=null, dragEl=null, placeholder=null, offsetY=0;
   const body = document.getElementById('mergeBody');
-
-  function onDown(e){
+  body.addEventListener('pointerdown', e=>{
     const handle = e.target.closest('.m-handle');
     if(!handle) return;
     e.preventDefault();
@@ -463,92 +809,55 @@ document.getElementById('clearMergeBtn').addEventListener('click', ()=>{
     dragIdx = +item.dataset.idx;
     dragEl = item;
     const rect = item.getBoundingClientRect();
-    const point = getPoint(e);
-    offsetY = point.y - rect.top;
+    offsetY = e.clientY - rect.top;
     item.classList.add('dragging');
-    // placeholder to keep layout stable
     placeholder = item.cloneNode(true);
     placeholder.classList.remove('dragging');
-    placeholder.style.opacity = '0';
-    placeholder.style.visibility = 'hidden';
+    placeholder.style.visibility='hidden';
     item.parentNode.insertBefore(placeholder, item);
-    // fixed positioning following cursor
-    item.style.position = 'fixed';
-    item.style.zIndex = '60';
-    item.style.width = rect.width + 'px';
-    item.style.left = rect.left + 'px';
-    moveItem(point);
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-    document.addEventListener('touchmove', onMove, {passive:false});
-    document.addEventListener('touchend', onUp);
-  }
-  function getPoint(e){
-    if(e.touches && e.touches[0]) return {x:e.touches[0].clientX, y:e.touches[0].clientY};
-    return {x:e.clientX, y:e.clientY};
-  }
-  function moveItem(p){
+    item.style.position='fixed'; item.style.zIndex='60';
+    item.style.width=rect.width+'px'; item.style.left=rect.left+'px';
+    moveItem(e.clientY);
+    const move = ev=>{ ev.preventDefault(); moveItem(ev.clientY); };
+    const up = ()=>{
+      const items=[...body.querySelectorAll('.m-item')];
+      let newIdx=0;
+      for(let i=0;i<items.length;i++){ if(items[i]===placeholder){ newIdx=i; break; } }
+      dragEl.style.position=''; dragEl.style.zIndex=''; dragEl.style.width=''; dragEl.style.left=''; dragEl.style.top='';
+      dragEl.classList.remove('dragging');
+      if(placeholder.parentNode) placeholder.parentNode.removeChild(placeholder);
+      placeholder=null;
+      if(newIdx!==dragIdx){ const [m]=mergeList.splice(dragIdx,1); mergeList.splice(newIdx,0,m); }
+      renderMerge();
+      dragEl=null; dragIdx=null;
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+    };
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+  });
+  function moveItem(y){
     if(!dragEl) return;
-    dragEl.style.top = (p.y - offsetY) + 'px';
-    // determine target position among siblings
-    const items = [...body.querySelectorAll('.m-item:not(.dragging)')];
-    let target = null;
+    dragEl.style.top = (y - offsetY) + 'px';
+    const items=[...body.querySelectorAll('.m-item:not(.dragging)')];
+    let target=null;
     for(const it of items){
-      const r = it.getBoundingClientRect();
-      const mid = r.top + r.height/2;
-      if(p.y < mid){ target = it; break; }
+      const r=it.getBoundingClientRect();
+      if(y < r.top + r.height/2){ target=it; break; }
     }
-    // move placeholder
-    if(target && target !== placeholder){
-      body.insertBefore(placeholder, target);
-    } else if(!target){
-      body.appendChild(placeholder);
-    }
+    if(target && target!==placeholder) body.insertBefore(placeholder, target);
+    else if(!target) body.appendChild(placeholder);
   }
-  function onMove(e){
-    if(!dragEl) return;
-    e.preventDefault();
-    moveItem(getPoint(e));
-  }
-  function onUp(){
-    if(!dragEl) return;
-    // compute new index from placeholder position
-    const items = [...body.querySelectorAll('.m-item')];
-    let newIdx = 0;
-    for(let i=0;i<items.length;i++){
-      if(items[i] === placeholder){ newIdx = i; break; }
-    }
-    // restore dragged element
-    dragEl.style.position=''; dragEl.style.zIndex=''; dragEl.style.width='';
-    dragEl.style.left=''; dragEl.style.top='';
-    dragEl.classList.remove('dragging');
-    // remove placeholder
-    if(placeholder && placeholder.parentNode) placeholder.parentNode.removeChild(placeholder);
-    placeholder = null;
-
-    if(newIdx !== dragIdx){
-      const [moved] = mergeList.splice(dragIdx,1);
-      mergeList.splice(newIdx,0,moved);
-      renderMerge();
-    } else {
-      renderMerge();
-    }
-    dragEl = null; dragIdx = null;
-    document.removeEventListener('mousemove', onMove);
-    document.removeEventListener('mouseup', onUp);
-    document.removeEventListener('touchmove', onMove);
-    document.removeEventListener('touchend', onUp);
-  }
-  body.addEventListener('mousedown', onDown);
-  body.addEventListener('touchstart', onDown, {passive:false});
 })();
 
-/* ============ Export / Copy ============ */
+/* =========================================================
+ * Export / copy
+ * ========================================================= */
 function mergeToText(){
   return mergeList.map(it=>{
     let t = `# ${it.title}\n`;
     if(it.body) t += it.body + '\n';
-    if(it.tags) t += `标签：${it.tags}\n`;
+    if(it.tags && it.tags.length) t += `标签：${it.tags.map(k=>tagDef(k).label).join('、')}\n`;
     return t;
   }).join('\n');
 }
@@ -558,14 +867,23 @@ document.getElementById('exportBtn').addEventListener('click', ()=>{
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = '合并文档.md';
-  a.click();
-  URL.revokeObjectURL(a.href);
+  a.click(); URL.revokeObjectURL(a.href);
 });
 document.getElementById('copyBtn').addEventListener('click', async ()=>{
   if(mergeList.length===0){ alert('合并区为空'); return; }
   try{ await navigator.clipboard.writeText(mergeToText()); alert('已复制到剪贴板'); }
-  catch{ alert('复制失败，请手动选择文本'); }
+  catch{ alert('复制失败'); }
 });
+
+/* =========================================================
+ * Util
+ * ========================================================= */
+function escapeHtml(s){
+  return (s||'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+/* init */
+renderHome();
 </script>
 </body>
 </html>
