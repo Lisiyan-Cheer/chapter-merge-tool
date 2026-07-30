@@ -284,6 +284,10 @@
     cursor:pointer; user-select:none; background:#fafbfc;
   }
   .add-tag-btn:hover{border-color:var(--accent); color:var(--accent)}
+  .lp-item{display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; cursor:pointer; background:#fff}
+  .lp-item:hover{border-color:var(--accent); background:var(--sel,#eff6ff)}
+  .lp-item .lp-t{flex:1; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .lp-item .lp-m{font-size:12px; color:var(--muted)}
 
   /* mobile */
   @media (max-width:760px){
@@ -460,6 +464,7 @@
         <div class="title" id="title-l">未上传</div>
         <div class="meta" id="meta-l"></div>
         <div class="col-actions">
+          <button class="btn ghost sm" data-lib="l">从库选</button>
           <button class="btn ghost sm" data-up="l">上传</button>
           <button class="btn ghost sm" data-clear="l" style="display:none">清除</button>
         </div>
@@ -477,6 +482,7 @@
         <div class="title" id="title-r">未上传</div>
         <div class="meta" id="meta-r"></div>
         <div class="col-actions">
+          <button class="btn ghost sm" data-lib="r">从库选</button>
           <button class="btn ghost sm" data-up="r">上传</button>
           <button class="btn ghost sm" data-clear="r" style="display:none">清除</button>
         </div>
@@ -521,6 +527,17 @@
     </div>
     <div class="tp-list"></div>
     <div class="tp-foot">31 种标签 · 再次点击取消 · 完成后自动保存</div>
+  </div>
+</div>
+
+<!-- ===== Library doc picker popup (for workspace columns) ===== -->
+<div class="tp-pop" id="libPickerPop">
+  <div class="tp-box">
+    <div class="tp-head">
+      <h4>📑 从文档库选一个文档放入此列</h4>
+      <button class="btn ghost sm" id="lpClose">取消</button>
+    </div>
+    <div class="lp-list tp-list" style="flex-direction:column; gap:6px"></div>
   </div>
 </div>
 
@@ -574,6 +591,7 @@ const LS_CART = 'chapterToolCart_v1';
 
 let docs = loadDocs();
 let cart = loadCart(); // array of "docId:idx"
+const wsPicks = new Set(); // 文档库中勾选要进双列的 docId，最多2个
 
 function loadDocs(){
   try{ return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); }
@@ -672,14 +690,15 @@ function renderHome(){
   docs.forEach(doc=>{
     const card = document.createElement('div');
     card.className = 'doc-card';
+    const picked = wsPicks.has(doc.id);
     card.innerHTML = `
-      <div class="info">
+      <input type="checkbox" class="cb ws-pick" data-pick-ws="${doc.id}" ${picked?'checked':''} style="flex:0 0 20px; margin-top:2px; accent-color:var(--accent)">
+      <div class="info" data-open-doc="${doc.id}" style="cursor:pointer">
         <div class="t">${escapeHtml(doc.title)}</div>
         <div class="m">${doc.chaps.length} 章 · ${cart.filter(x=>x.startsWith(doc.id+':')).length} 已选入合并</div>
       </div>
       <div class="act">
         <button class="btn sm" data-open-doc="${doc.id}">查看</button>
-        <button class="btn sm" data-send-ws="${doc.id}">→双列</button>
         <button class="btn sm del" data-del-doc="${doc.id}">删</button>
       </div>`;
     lib.appendChild(card);
@@ -690,6 +709,51 @@ function renderHome(){
   cloud.innerHTML = sortedTags.map(k=> tagChipHTML(k, tagCount[k])).join('') ||
     `<span style="color:var(--muted)">无标签</span>`;
   document.getElementById('tagSection').style.display = '';
+
+  // ws pick bar
+  renderWsPickBar();
+}
+
+/* ws pick bar: shows selected count + 进入双列对比 button */
+function renderWsPickBar(){
+  let bar = document.getElementById('wsPickBar');
+  if(!bar){
+    bar = document.createElement('div');
+    bar.id = 'wsPickBar';
+    bar.style.cssText = 'display:flex; align-items:center; gap:10px; margin:10px 0; flex-wrap:wrap';
+    const sec = document.getElementById('tagSection');
+    sec.parentNode.insertBefore(bar, sec);
+  }
+  const n = wsPicks.size;
+  if(docs.length===0){ bar.style.display='none'; return; }
+  bar.style.display='flex';
+  const names = [...wsPicks].map(id=> docs.find(d=>d.id===id)?.title || '').filter(Boolean);
+  bar.innerHTML = `
+    <span class="sel-count">已选 ${n}/2 ${names.length?`· ${names.map(escapeHtml).join(' / ')}`:''}</span>
+    <button class="btn primary sm" id="goWsFromPicks" ${n===0?'disabled':''}>进入双列对比 →</button>
+    ${n>0?`<button class="btn ghost sm" id="clearWsPicks">取消勾选</button>`:''}
+    <span style="font-size:12px; color:var(--muted)">勾选 1~2 个文档（不选则进入空白双列页自己上传）</span>`;
+  document.getElementById('goWsFromPicks').addEventListener('click', sendPicksToWorkspace);
+  const clr = document.getElementById('clearWsPicks');
+  if(clr) clr.addEventListener('click', ()=>{ wsPicks.clear(); renderHome(); });
+}
+
+/* send selected docs (1~2) into workspace left/right */
+function sendPicksToWorkspace(){
+  const ids = [...wsPicks];
+  ws.l = {title:'',chaps:[]};
+  ws.r = {title:'',chaps:[]};
+  if(ids.length>=1){
+    const d = docs.find(x=>x.id===ids[0]);
+    if(d) ws.l = { title:d.title, chaps:d.chaps.map(c=>({...c})) };
+  }
+  if(ids.length>=2){
+    const d = docs.find(x=>x.id===ids[1]);
+    if(d) ws.r = { title:d.title, chaps:d.chaps.map(c=>({...c})) };
+  }
+  renderWorkspaceSide('l'); renderWorkspaceSide('r');
+  wsPicks.clear();
+  showView('workspace');
 }
 
 /* =========================================================
@@ -1082,18 +1146,29 @@ setupHomeDrop();
 
 /* event delegation on docLib */
 document.getElementById('docLib').addEventListener('click', e=>{
-  const open = e.target.closest('[data-open-doc]');
-  const send = e.target.closest('[data-send-ws]');
   const del = e.target.closest('[data-del-doc]');
-  if(open){ openDoc(open.dataset.openDoc); }
-  if(send){ sendToWorkspace(send.dataset.sendWs); }
+  const pick = e.target.closest('[data-pick-ws]');
   if(del){
     if(!confirm('删除这个文档？')) return;
     const id = del.dataset.delDoc;
     docs = docs.filter(d=>d.id!==id);
     cart = cart.filter(x=>!x.startsWith(id+':'));
+    wsPicks.delete(id);
     saveDocs(); saveCart(); updateCartBadge(); renderHome();
+    return;
   }
+  if(pick){
+    const id = pick.dataset.pickWs;
+    if(wsPicks.has(id)) wsPicks.delete(id);
+    else {
+      if(wsPicks.size>=2){ alert('最多勾选 2 个文档进入双列对比'); return; }
+      wsPicks.add(id);
+    }
+    renderHome();
+    return;
+  }
+  const open = e.target.closest('[data-open-doc]');
+  if(open){ openDoc(open.dataset.openDoc); }
 });
 
 /* =========================================================
@@ -1283,18 +1358,6 @@ document.getElementById('cartBtn').addEventListener('click', ()=>{
  * ========================================================= */
 const ws = { l:{title:'',chaps:[]}, r:{title:'',chaps:[]} };
 
-function sendToWorkspace(docId){
-  const doc = docs.find(d=>d.id===docId);
-  if(!doc) return;
-  // pick side: l if empty else r if empty else ask
-  let side = ws.l.chaps.length===0 ? 'l' : (ws.r.chaps.length===0 ? 'r' : null);
-  if(!side){
-    side = confirm('左侧已占用，放入右侧？(取消=左侧)') ? 'r' : 'l';
-  }
-  ws[side] = { title: doc.title, chaps: doc.chaps.map(c=>({...c})) };
-  renderWorkspaceSide(side);
-  showView('workspace');
-}
 function renderWorkspaceSide(side){
   const drop = document.getElementById('drop-'+side);
   const list = document.getElementById('list-'+side);
@@ -1335,7 +1398,9 @@ function chapRowHTMLWS(side, i, inCart){
   const drop = document.getElementById('drop-'+side);
   const inp = document.getElementById('file-'+side);
   const upBtn = document.querySelector(`[data-up="${side}"]`);
+  const libBtn = document.querySelector(`[data-lib="${side}"]`);
   upBtn.addEventListener('click', e=>{ e.stopPropagation(); inp.click(); });
+  libBtn.addEventListener('click', e=>{ e.stopPropagation(); pickLibDocForWS(side); });
   drop.addEventListener('click', ()=> inp.click());
   ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev, e=>{e.preventDefault(); drop.classList.add('drag');}));
   ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev, e=>{e.preventDefault(); drop.classList.remove('drag');}));
@@ -1349,6 +1414,29 @@ function chapRowHTMLWS(side, i, inCart){
     cart = cart.filter(x=>!x.startsWith('ws:'+side+':'));
     saveCart(); updateCartBadge(); renderWorkspaceSide(side);
   });
+});
+/* pick a library doc for a workspace column via a small modal */
+let wsPickTarget = null;
+function pickLibDocForWS(side){
+  wsPickTarget = side;
+  const pop = document.getElementById('libPickerPop');
+  const list = pop.querySelector('.lp-list');
+  if(docs.length===0){ list.innerHTML = `<div style="color:var(--muted); padding:16px; text-align:center">文档库还是空的，先回首页上传</div>`; }
+  else {
+    list.innerHTML = docs.map(d=>`<div class="lp-item" data-lp="${d.id}"><span class="lp-t">${escapeHtml(d.title)}</span><span class="lp-m">${d.chaps.length} 章</span></div>`).join('');
+  }
+  pop.classList.add('show');
+}
+document.getElementById('libPickerPop').addEventListener('click', e=>{
+  if(e.target.id==='libPickerPop' || e.target.closest('#lpClose')){ e.currentTarget.classList.remove('show'); return; }
+  const item = e.target.closest('[data-lp]');
+  if(!item) return;
+  const d = docs.find(x=>x.id===item.dataset.lp);
+  if(d){
+    ws[wsPickTarget] = { title:d.title, chaps:d.chaps.map(c=>({...c})) };
+    renderWorkspaceSide(wsPickTarget);
+  }
+  document.getElementById('libPickerPop').classList.remove('show');
 });
 function loadWS(side, file){
   const r = new FileReader();
