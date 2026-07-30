@@ -257,6 +257,22 @@
   .pb-tpl button{border:1px solid var(--border); background:#fff; border-radius:8px; padding:5px 10px; font-size:12px; cursor:pointer; color:var(--muted)}
   .pb-tpl button:hover{background:#eef0f3; color:var(--text)}
 
+  /* ===== Tag picker popup ===== */
+  .tp-pop{position:fixed; inset:0; background:rgba(15,23,42,.45); z-index:60; display:none; align-items:center; justify-content:center; padding:16px}
+  .tp-pop.show{display:flex}
+  .tp-box{background:#fff; border-radius:14px; max-width:520px; width:100%; max-height:80vh; overflow:hidden; box-shadow:0 12px 30px rgba(0,0,0,.25); display:flex; flex-direction:column}
+  .tp-head{padding:12px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; background:#fafbfc}
+  .tp-head h4{font-size:14px; margin:0; flex:1}
+  .tp-list{padding:16px; overflow-y:auto; display:flex; flex-wrap:wrap; gap:8px; -webkit-overflow-scrolling:touch}
+  .tp-list .tag-chip.lit{outline:2px solid var(--accent); outline-offset:1px}
+  .tp-foot{padding:10px 16px; border-top:1px solid var(--border); font-size:12px; color:var(--muted); text-align:center}
+  .add-tag-btn{
+    display:inline-flex; align-items:center; padding:3px 9px; font-size:11px;
+    border:1px dashed var(--border); border-radius:20px; color:var(--muted);
+    cursor:pointer; user-select:none; background:#fafbfc;
+  }
+  .add-tag-btn:hover{border-color:var(--accent); color:var(--accent)}
+
   /* mobile */
   @media (max-width:760px){
     .workspace{grid-template-columns:1fr; gap:10px}
@@ -306,7 +322,7 @@
   </div>
   <div class="doc-lib" id="docLib"></div>
   <div class="tag-section" id="tagSection" style="display:none">
-    <h3>🏷️ 按标签分类（点击筛选章节）</h3>
+    <h3>🏷️ 按标签分类（点击筛选章节 · 标签需手动贴，见各章「+ 添加标签」）</h3>
     <div class="tag-cloud" id="tagCloud"></div>
   </div>
 </div>
@@ -481,6 +497,18 @@
   </div>
 </div>
 
+<!-- ===== Tag picker popup ===== -->
+<div class="tp-pop" id="tagPickerPop">
+  <div class="tp-box">
+    <div class="tp-head">
+      <h4>🏷️ 给这一章贴标签（点选切换，可多选）</h4>
+      <button class="btn ghost sm" id="tpClose">完成</button>
+    </div>
+    <div class="tp-list"></div>
+    <div class="tp-foot">31 种标签 · 再次点击取消 · 完成后自动保存</div>
+  </div>
+</div>
+
 <script>
 /* =========================================================
  * 31-tag taxonomy
@@ -582,22 +610,9 @@ function parseDoc(text, filename){
     const tagMatch = bodyTxt.match(/标签[:：]\s*(.+)$/m);
     c.rawTags = tagMatch ? tagMatch[1].trim() : '';
     c.body = bodyTxt.replace(/标签[:：]\s*.+$/m, '').trim();
-    c.tags = autoTag(c.title + ' ' + c.body + ' ' + c.rawTags);
+    c.tags = []; // 手动贴标签，不再自动打
   });
   return { title, chaps };
-}
-
-function autoTag(text){
-  const lower = text.toLowerCase();
-  const hits = new Set();
-  for(const def of TAG_DEFS){
-    for(const w of def.words){
-      if(lower.includes(w.toLowerCase())){ hits.add(def.k); break; }
-    }
-  }
-  // fallback: if nothing matched, mark 'routine'
-  if(hits.size === 0) hits.add('routine');
-  return [...hits];
 }
 
 function tagDef(k){ return TAG_DEFS.find(d=>d.k===k); }
@@ -1062,9 +1077,11 @@ document.getElementById('tagCloud').addEventListener('click', e=>{
   openTag(chip.dataset.tag);
 });
 function openTag(tagKey){
+  currentTagKey = tagKey;
   const def = tagDef(tagKey);
   document.getElementById('tagViewTitle').innerHTML =
     `<span class="tag-chip ${def.cls}">${def.label}</span> 相关章节`;
+  document.getElementById('tagViewTitle').dataset.tagKey = tagKey;
   const list = document.getElementById('tagResultList');
   list.innerHTML = '';
   let total = 0;
@@ -1080,7 +1097,7 @@ function openTag(tagKey){
       }
     });
   });
-  if(total===0) list.innerHTML = `<div class="empty-state"><div class="ico">🏷️</div>没有该标签的章节</div>`;
+  if(total===0) list.innerHTML = `<div class="empty-state"><div class="ico">🏷️</div>没有该标签的章节<div style="font-size:13px; margin-top:4px">去「查看」文档里点「+ 添加标签」给章节贴上这个标签</div></div>`;
   showView('tag');
 }
 
@@ -1107,7 +1124,7 @@ function chapRowHTML(doc, i, inCart, showSource){
   const c = doc.chaps[i];
   const tagsHTML = c.tags.map(k=>{
     const d = tagDef(k);
-    return `<span class="tag-chip ${d.cls}" style="cursor:default; padding:3px 9px; font-size:11px">${d.label}</span>`;
+    return `<span class="tag-chip ${d.cls}" style="cursor:default; padding:3px 9px; font-size:11px" data-rmtag="${k}">${d.label}<b style="margin-left:3px; opacity:.6">✕</b></span>`;
   }).join('');
   return `
     <div class="chap-row" data-cart="${doc.id}:${i}">
@@ -1115,14 +1132,90 @@ function chapRowHTML(doc, i, inCart, showSource){
       <div class="chap-main">
         <div class="chap-title">${escapeHtml(c.title)}</div>
         ${c.body?`<div class="chap-body">${escapeHtml(c.body)}</div>`:''}
-        <div class="chap-tagline">${tagsHTML}</div>
+        <div class="chap-tagline">${tagsHTML}<span class="add-tag-btn" data-edittag="${doc.id}:${i}">+ 添加标签</span></div>
       </div>
     </div>`;
 }
 
+/* tag editing: open picker overlay */
+let editTarget = null; // {docId, idx}
+function openTagEditor(docId, idx){
+  editTarget = {docId, idx};
+  const doc = docId.startsWith('ws') ? null : docs.find(d=>d.id===docId);
+  // workspace chapters not editable here; only library docs
+  if(!doc) return;
+  const c = doc.chaps[idx];
+  const cur = new Set(c.tags);
+  const pop = document.getElementById('tagPickerPop');
+  pop.querySelector('.tp-list').innerHTML = TAG_DEFS.map(d=>{
+    const on = cur.has(d.k);
+    return `<span class="tag-chip ${d.cls}${on?' lit':''}" data-pick="${d.k}">${d.label}${on?' ✓':''}</span>`;
+  }).join('');
+  pop.classList.add('show');
+}
+document.getElementById('tagPickerPop').addEventListener('click', e=>{
+  // close on backdrop
+  if(e.target.id==='tagPickerPop'){ e.target.classList.remove('show'); return; }
+  const pick = e.target.closest('[data-pick]');
+  if(!pick) return;
+  const k = pick.dataset.pick;
+  const {docId, idx} = editTarget;
+  const doc = docs.find(d=>d.id===docId);
+  if(!doc) return;
+  const c = doc.chaps[idx];
+  const pos = c.tags.indexOf(k);
+  if(pos>=0) c.tags.splice(pos,1);
+  else c.tags.push(k);
+  saveDocs();
+  // refresh current view
+  const curView = document.querySelector('.view.active')?.id;
+  if(curView==='view-doc') openDoc(docId);
+  else if(curView==='view-tag') openTag(document.getElementById('tagViewTitle').dataset.tagKey || currentTagKey);
+  else if(curView==='view-home') renderHome();
+  // update chip state
+  const cur2 = new Set(c.tags);
+  pick.classList.toggle('lit', cur2.has(k));
+  pick.textContent = tagDef(k).label + (cur2.has(k)?' ✓':'');
+});
+document.getElementById('tpClose').addEventListener('click', ()=>{
+  document.getElementById('tagPickerPop').classList.remove('show');
+});
+let currentTagKey = '';
+
+/* remove a tag inline */
+document.addEventListener('click', e=>{
+  const rm = e.target.closest('[data-rmtag]');
+  if(!rm) return;
+  e.stopPropagation();
+  const k = rm.dataset.rmtag;
+  const row = rm.closest('[data-cart]');
+  if(!row) return;
+  const [docId, idx] = row.dataset.cart.split(':');
+  const doc = docs.find(d=>d.id===docId);
+  if(!doc) return;
+  const c = doc.chaps[+idx];
+  const pos = c.tags.indexOf(k);
+  if(pos>=0) c.tags.splice(pos,1);
+  saveDocs();
+  const curView = document.querySelector('.view.active')?.id;
+  if(curView==='view-doc') openDoc(docId);
+  else if(curView==='view-tag') openTag(currentTagKey);
+  else if(curView==='view-home') renderHome();
+}, true);
+
 /* event delegation for chap rows (cart toggle) — tag view & doc view */
 function bindChapClick(container){
   container.addEventListener('click', e=>{
+    // add-tag button
+    const add = e.target.closest('[data-edittag]');
+    if(add){
+      e.stopPropagation();
+      const [docId, idx] = add.dataset.edittag.split(':');
+      openTagEditor(docId, +idx);
+      return;
+    }
+    // tag chip remove
+    if(e.target.closest('[data-rmtag]')) return;
     const row = e.target.closest('[data-cart]');
     if(!row) return;
     const key = row.dataset.cart;
