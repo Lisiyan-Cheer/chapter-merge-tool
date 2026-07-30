@@ -236,6 +236,27 @@
   .cmp-hint{font-size:12px; color:var(--muted); margin-top:8px}
   .cmp-empty{text-align:center; color:var(--muted); padding:24px; font-size:13px}
 
+  /* ===== Prompt builder ===== */
+  .pb-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+  .pb-col{background:#fff; border:1px solid var(--border); border-radius:12px; padding:10px; box-shadow:var(--shadow)}
+  .pb-col .ph{font-size:13px; color:var(--muted); margin-bottom:6px}
+  .pb-col textarea{width:100%; min-height:240px; border:1px solid var(--border); border-radius:8px; padding:10px; font:inherit; font-size:13px; resize:vertical; background:#fafbfc}
+  .pb-col textarea:focus{outline:2px solid var(--accent); border-color:var(--accent)}
+  .pb-mode{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px}
+  .pb-mode label{display:flex; align-items:center; gap:6px; cursor:pointer; border:1px solid var(--border); border-radius:10px; padding:8px 12px; background:#fff; font-size:13px}
+  .pb-mode input{accent-color:var(--accent)}
+  .pb-mode label.on{border-color:var(--accent); background:var(--sel,#eff6ff); color:var(--accent); font-weight:600}
+  .pb-out{margin-top:14px; background:#fff; border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow); overflow:hidden}
+  .pb-out-head{display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--border); background:#fafbfc}
+  .pb-out-head h3{font-size:14px; margin:0; flex:1}
+  .pb-out pre{margin:0; padding:14px; font-size:13px; line-height:1.7; white-space:pre-wrap; word-break:break-word; max-height:60vh; overflow-y:auto; color:var(--text)}
+  .pb-empty{text-align:center; color:var(--muted); padding:30px; font-size:13px}
+  .pb-hint{font-size:12px; color:var(--muted); margin-top:8px; line-height:1.7}
+  .pb-hint b{color:var(--text)}
+  .pb-tpl{display:flex; gap:6px; flex-wrap:wrap; margin:8px 0 10px}
+  .pb-tpl button{border:1px solid var(--border); background:#fff; border-radius:8px; padding:5px 10px; font-size:12px; cursor:pointer; color:var(--muted)}
+  .pb-tpl button:hover{background:#eef0f3; color:var(--text)}
+
   /* mobile */
   @media (max-width:760px){
     .workspace{grid-template-columns:1fr; gap:10px}
@@ -246,6 +267,7 @@
     .topbar{flex-wrap:wrap}
     .topbar h1{font-size:15px}
     .compare-grid{grid-template-columns:1fr}
+    .pb-grid{grid-template-columns:1fr}
   }
   .no-res{user-select:none}
 </style>
@@ -273,6 +295,7 @@
     <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:14px">
       <button class="btn primary" id="goCompareBtn">🔗 对比合并（同章两版挑段）</button>
       <button class="btn" id="goWorkspaceBtn">📑 双列章节合并</button>
+      <button class="btn" id="goPromptBtn">✍️ 提示词生成</button>
     </div>
   </div>
   <div class="dropzone" id="homeDrop">
@@ -321,6 +344,62 @@
   </div>
   <div class="cmp-result" id="cmpResult"></div>
   <div class="cmp-hint">提示：结果区拖 <b>⋮⋮</b> 排序，✕ 删除；点上方已选项可取消（从结果移除）</div>
+</div>
+
+<!-- ===== PROMPT BUILDER VIEW ===== -->
+<div class="view" id="view-prompt">
+  <div class="back-row">
+    <button class="btn ghost sm" id="promptBack">← 返回</button>
+    <h2>提示词生成</h2>
+  </div>
+
+  <div class="pb-mode" id="pbModeWrap">
+    <label class="on"><input type="radio" name="pbMode" value="full" checked><span>模式一：原文 + 我的完整想法 → 仿写正文</span></label>
+    <label><input type="radio" name="pbMode" value="beat"><span>模式二：原文 → 拆解 beat → 生成我的 beat</span></label>
+    <label><input type="radio" name="pbMode" value="setting"><span>模式三：原文 + 设定 → 直接仿写</span></label>
+  </div>
+
+  <div class="pb-grid">
+    <div class="pb-col">
+      <div class="ph">📖 参考原文（粘贴你想模仿文风的原文，或上一章作为衔接）</div>
+      <textarea id="pbRef" placeholder="粘贴参考原文…"></textarea>
+      <div class="pb-tpl" id="pbRefTpl">
+        <button data-fill-ref="sample">填入示例原文</button>
+        <button data-clear="ref">清空</button>
+      </div>
+    </div>
+    <div class="pb-col" id="pbIdeaWrap">
+      <div class="ph" id="pbIdeaPh">💡 我的想法 / 章节 beat 大纲（按你的写法写，说大概就行，AI 会模仿原文文风改写）</div>
+      <textarea id="pbIdea" placeholder="粘贴你的想法、剧情点、女主设定、章节梗概…&#10;&#10;例如：&#10;先用几句涩涩擦边误解向对话吸引眼球…&#10;陆宇在自家民宿露台听太古里路人…&#10;女主一（鹅蛋脸，皮肤白皙…毒舌嘴损…）路过，在售货窗口问男主买依云…&#10;系统激活，获得百万元…结束本章。"></textarea>
+      <div class="pb-tpl" id="pbIdeaTpl">
+        <button data-fill-idea="sample">填入示例想法</button>
+        <button data-clear="idea">清空</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="pb-hint" id="pbHint">
+    <b>使用说明：</b>选好模式，分别贴入「参考原文」和「我的想法」，点「生成提示词」→ 复制到任意 AI 对话框即可。<br>
+    <b>模式一</b>：原文 + 完整想法 → AI 直接仿写你的正文（可指定字数）。<br>
+    <b>模式二</b>：AI 先拆解参考原文的 beat（节奏点/爽点/伏笔），再按你的主题生成同结构的 beat 大纲，不写正文。<br>
+    <b>模式三</b>：原文 + 设定（不含剧情想法）→ AI 分析原文文风后直接仿写。
+  </div>
+
+  <div style="margin-top:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+    <button class="btn primary" id="pbGen">✨ 生成提示词</button>
+    <label style="font-size:13px; color:var(--muted)">目标字数：
+      <input type="number" id="pbWords" value="1800" min="200" step="100" style="width:80px; padding:5px 8px; border:1px solid var(--border); border-radius:8px; font:inherit">
+    </label>
+  </div>
+
+  <div class="pb-out" id="pbOut" style="display:none">
+    <div class="pb-out-head">
+      <h3>生成的提示词</h3>
+      <button class="btn primary sm" id="pbCopy">复制</button>
+      <button class="btn sm" id="pbClearOut">清空</button>
+    </div>
+    <pre id="pbOutPre"></pre>
+  </div>
 </div>
 
 <!-- ===== TAG RESULT VIEW ===== -->
@@ -754,6 +833,181 @@ document.getElementById('cmpCopy').addEventListener('click', async ()=>{
     else if(!target) box.appendChild(placeholder);
   }
 })();
+
+/* =========================================================
+ * PROMPT BUILDER
+ * mode: full / beat / setting
+ * ========================================================= */
+const PB_SAMPLES = {
+  ref: `【参考原文】
+龙国，辽省，盛天市，铁西区，建设大路保工街——
+"三上优送的家人们！大家！早上好！"
+清晨六点半，一个破门市前，二十多个穿着土黄色制服的骑手站成一排，稀稀拉拉地喊着口号：
+"好！很好！非常好！"
+站长王大力踩在一个送餐箱上，精神抖擞地一扬手：
+"我们的口号是！"
+"东奔西跑，三上最好！快字当头，三上不愁！"
+（……略，文风特征：第一人称吐槽口吻 + 系统弹窗 + 选项分析 + 内心戏拉满 + 段落短促、节奏快、反差萌）`,
+  idea: `我要写一本在成都太古里经营民宿的多女主后宫男频爽文，女主身份要下沉，比如女主播、瑜伽教练，你要模仿我给你的参考原文文风，根据我的主题进行仿写，输出我的正文。
+
+第一章 beat：
+1. 先用几句涩涩擦边误解向对话吸引眼球（太古里/酒吧特色），"人的悲喜并不相通，陆宇只觉得他们吵闹"。
+2. 陆宇在自家民宿露台听着太古里各路神魔路过，心里纳闷隔两条马路愣是没人来民宿。自嘲"再撑三天，不行就去隔壁酒吧当男模"。
+3. 女主一（鹅蛋脸，皮肤白皙透亮，长发及腰，眉眼细长带天然媚意，鼻梁高挺，身高168，紧身牛仔裤白袜，衣服你定。毒舌、嘴最损、怼人功力登峰造极，清醒现实、爱钱有底线、嘴硬心软）路过，没进门，在对外售货窗口问男主买一瓶依云。
+4. 男主下到1楼揽客，女主警惕"你这民宿这么破，依云不会是假货吧"，男主说"不信拉倒，去别的地方买"，女主说"要不是这附近全是酒吧全是酒水奶茶，我才不会在你这买"，拉扯几下后成交。
+5. 这时候系统激活，获得百万元。结束这一章。模仿原文文风，可改动我的语言，我说的都是大概。`
+};
+
+/* mode switch styling */
+document.getElementById('pbModeWrap').addEventListener('change', e=>{
+  if(e.target.name!=='pbMode') return;
+  const mode = e.target.value;
+  document.querySelectorAll('#pbModeWrap label').forEach(l=>l.classList.remove('on'));
+  e.target.closest('label').classList.add('on');
+  const ideaPh = document.getElementById('pbIdeaPh');
+  const idea = document.getElementById('pbIdea');
+  const hint = document.getElementById('pbHint');
+  if(mode==='beat'){
+    ideaPh.textContent = '💡 我的主题 / 想法（简短即可，AI 先拆原文 beat 再据此生成你的 beat 大纲）';
+    idea.placeholder = '例如：\n主题：成都太古里经营民宿的多女主后宫爽文。\n第一章想写：男主在民宿露台自嘲生意差，女主一来买依云引出冲突，系统激活发百万。\n（不需要细写，写个大概主题即可）';
+    hint.innerHTML = '<b>使用说明：</b>选好模式，分别贴入「参考原文」和「我的主题」，点「生成提示词」→ 复制到任意 AI 对话框。<br><b>模式二</b>：AI 先逐段拆解参考原文的 beat（开场钩子 / 信息铺垫 / 系统弹窗 / 选项博弈 / 落点反转 / 内心戏节奏等），再按你的主题生成结构一致的新 beat 大纲，<b>不写正文</b>，方便你再喂给 AI 写正文。';
+  } else if(mode==='setting'){
+    ideaPh.textContent = '⚙️ 设定 / 人设 / 世界观（不含具体剧情想法）';
+    idea.placeholder = '例如：\n主角：陆宇，26岁，成都太古里经营一家濒临倒闭的民宿。\n系统：县域消费金系统，按成都常住人口百倍每日发放资金。\n女主一：瑜伽教练，毒舌嘴损，嘴硬心软，爱钱有底线。\n女主二：探店女主播，活泼撩人。\n文风：第一人称吐槽、短段落、系统弹窗、反差萌。';
+    hint.innerHTML = '<b>使用说明：</b>选好模式，贴入「参考原文」和「设定」，点「生成提示词」。<br><b>模式三</b>：AI 先分析原文文风与节奏，再根据你的设定直接仿写一章正文（剧情由 AI 依据设定发挥，你可以再迭代）。';
+  } else {
+    ideaPh.textContent = '💡 我的想法 / 章节 beat 大纲（按你的写法写，说大概就行，AI 会模仿原文文风改写）';
+    idea.placeholder = '粘贴你的想法、剧情点、女主设定、章节梗概…';
+    hint.innerHTML = '<b>使用说明：</b>选好模式，分别贴入「参考原文」和「我的想法」，点「生成提示词」→ 复制到任意 AI 对话框即可。<br><b>模式一</b>：原文 + 完整想法 → AI 直接仿写你的正文（可指定字数）。<br><b>模式二</b>：AI 先拆解参考原文的 beat，再按你的主题生成同结构的 beat 大纲，不写正文。<br><b>模式三</b>：原文 + 设定 → AI 分析原文文风后直接仿写。';
+  }
+});
+
+/* tpl buttons */
+document.getElementById('pbRefTpl').addEventListener('click', e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  if(b.dataset.fillRef) document.getElementById('pbRef').value = PB_SAMPLES.ref;
+  if(b.dataset.clear==='ref') document.getElementById('pbRef').value = '';
+});
+document.getElementById('pbIdeaTpl').addEventListener('click', e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  if(b.dataset.fillIdea) document.getElementById('pbIdea').value = PB_SAMPLES.idea;
+  if(b.dataset.clear==='idea') document.getElementById('pbIdea').value = '';
+});
+
+/* generate */
+document.getElementById('pbGen').addEventListener('click', ()=>{
+  const mode = document.querySelector('input[name=pbMode]:checked').value;
+  const ref = document.getElementById('pbRef').value.trim();
+  const idea = document.getElementById('pbIdea').value.trim();
+  const words = +document.getElementById('pbWords').value || 1800;
+  if(!ref){ alert('请先粘贴参考原文'); return; }
+  if(mode!=='setting' && !idea){ alert('请填写你的想法/主题/设定'); return; }
+
+  let prompt = '';
+  if(mode==='full'){
+    prompt =
+`你是一位顶尖网文写手，擅长男频都市爽文、多女主后宫种马文。请严格模仿下面【参考原文】的文风、叙述视角、段落节奏、系统弹窗格式、吐槽口吻和内心戏密度，按【我的想法】仿写正文。
+
+【文风模仿要点】
+1. 视角与口吻：与参考原文保持一致（第一人称内心吐槽 / 第三人称限知等）。
+2. 段落节奏：短段落、快节奏、单句成段、关键处用"......"留白。
+3. 系统弹窗：用【】包裹，格式、措辞模仿原文。
+4. 内心戏：拉满反差、自我吐槽、爽点铺垫，参考原文那种"嘴上嫌弃心里狂喜"的层次感。
+5. 对话：口语化、有梗、带角色性格（毒舌/嘴损/装逼等），少用书面腔。
+6. 开场钩子：参考原文是否用擦边/反差/冲突开场，照搬这个钩子手法。
+
+【参考原文】
+${ref}
+
+【我的想法】
+${idea}
+
+【要求】
+- 输出正文，不要解释、不要分析、不要复述要求。
+- 目标字数约 ${words} 字，可上下浮动 10%。
+- 严格使用参考原文的文风，不要写成别的风格。
+- 我说的是大概，你可以为了流畅度调整措辞、补充细节、加过渡，但核心剧情点必须覆盖。
+- 章节结尾要留钩子/爽点落点，参考原文的收尾方式。`;
+  } else if(mode==='beat'){
+    prompt =
+`你是一位网文结构分析师 + 资深网文编辑。请先逐步拆解下面【参考原文】的 beat（节奏点），再按【我的主题】生成结构一致的新章节 beat 大纲。本轮不写正文，只输出结构。
+
+【第一步：拆解参考原文 beat】
+请逐段分析参考原文，提炼出它的叙事 beat，包括但不限于：
+- 开场钩子（用什么抓眼球：擦边/反差/冲突/误会）
+- 信息铺垫（怎么把主角背景、设定、处境交代出来）
+- 系统弹窗出现的时机与措辞
+- 选项博弈 / 内心权衡的过程（几个选项各自的利弊分析）
+- 落点反转或爽点引爆
+- 内心戏与吐槽的密度分布
+- 收尾钩子的类型（留悬念 / 抛爽点 / 留flag）
+请用编号列表输出原文 beat，每条标注：① 这一段在干什么 ② 它的叙事功能 ③ 为什么这样写有效。
+
+【参考原文】
+${ref}
+
+【第二步：生成我的 beat 大纲】
+按上面的 beat 结构（开场钩子→信息铺垫→系统激活→博弈/权衡→落点→收尾钩子），结合【我的主题】生成一份新章节的 beat 大纲。
+要求：
+- 每个 beat 写清楚：本段要交代什么、谁出场、发生什么、情绪走向、要埋的爽点/伏笔。
+- 保留参考原文的节奏感（短段落、快推进、反差萌、内心戏拉满）。
+- 给出建议字数分配（各 beat 占全章比例）。
+- 最后标注本章的爽点落点和收尾钩子。
+
+【我的主题】
+${idea}
+
+【输出格式】
+一、参考原文 beat 拆解（编号列表 + 分析）
+二、我的章节 beat 大纲（编号列表，对齐原文结构，标注字数分配与爽点落点）
+本轮只输出结构，不要写正文。`;
+  } else { // setting
+    prompt =
+`你是一位顶尖网文写手，擅长男频都市爽文、多女主后宫种马文。请先分析下面【参考原文】的文风特征，再根据【设定】仿写一章正文（剧情由你依据设定发挥，但要符合设定逻辑）。
+
+【第一步：文风分析】（简短列出，不要长篇大论）
+- 叙述视角与口吻
+- 段落长度与节奏
+- 系统/弹窗格式
+- 对话风格与角色语言特征
+- 内心戏与吐槽密度
+- 开场与收尾手法
+
+【参考原文】
+${ref}
+
+【设定】
+${idea}
+
+【要求】
+- 严格使用参考原文的文风，不要写成别的风格。
+- 目标字数约 ${words} 字，可上下浮动 10%。
+- 只输出正文，不要解释、不要分析、不要复述要求。
+- 章节结尾要留钩子/爽点落点。
+- 人物言行要符合设定中的性格标签（毒舌/嘴损/装逼等）。`;
+  }
+
+  const out = document.getElementById('pbOut');
+  const pre = document.getElementById('pbOutPre');
+  out.style.display = '';
+  pre.textContent = prompt;
+  out.scrollIntoView({behavior:'smooth', block:'nearest'});
+});
+
+document.getElementById('pbCopy').addEventListener('click', async ()=>{
+  const txt = document.getElementById('pbOutPre').textContent;
+  if(!txt){ alert('先生成提示词'); return; }
+  try{ await navigator.clipboard.writeText(txt); alert('已复制，粘贴到 AI 对话框即可'); }
+  catch{ alert('复制失败，请手动选择文本复制'); }
+});
+document.getElementById('pbClearOut').addEventListener('click', ()=>{
+  document.getElementById('pbOut').style.display='none';
+  document.getElementById('pbOutPre').textContent='';
+});
+
+/* nav */
+document.getElementById('goPromptBtn').addEventListener('click', ()=> showView('prompt'));
+document.getElementById('promptBack').addEventListener('click', ()=>{ showView('home'); renderHome(); });
 
 /* =========================================================
  * Upload to library (home)
