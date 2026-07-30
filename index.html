@@ -236,6 +236,18 @@
   .cmp-hint{font-size:12px; color:var(--muted); margin-top:8px}
   .cmp-empty{text-align:center; color:var(--muted); padding:24px; font-size:13px}
 
+  /* merge inline edit + insert */
+  .m-body, .m-title{cursor:text}
+  .m-body[contenteditable], .m-title[contenteditable]{outline:2px solid var(--accent); border-radius:4px; background:var(--sel,#eff6ff)}
+  .m-edit-hint{font-size:11px; color:var(--muted); margin-top:6px; opacity:.7}
+  .m-insert{display:flex; justify-content:center; padding:2px 0}
+  .m-insert span{
+    font-size:12px; color:var(--muted); cursor:pointer; user-select:none;
+    border:1px dashed var(--border); border-radius:20px; padding:4px 14px;
+    background:#fafbfc; transition:.12s;
+  }
+  .m-insert span:hover{border-color:var(--accent); color:var(--accent); background:var(--sel,#eff6ff)}
+
   /* ===== Prompt builder ===== */
   .pb-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px}
   .pb-col{background:#fff; border:1px solid var(--border); border-radius:12px; padding:10px; box-shadow:var(--shadow)}
@@ -613,9 +625,22 @@ function parseDoc(text, filename){
     const tagMatch = bodyTxt.match(/标签[:：]\s*(.+)$/m);
     c.rawTags = tagMatch ? tagMatch[1].trim() : '';
     c.body = bodyTxt.replace(/标签[:：]\s*.+$/m, '').trim();
-    c.tags = []; // 手动贴标签，不再自动打
+    // 自动识别原文「标签：」行：按 、，, 分隔，label 命中 31 类则收录
+    c.tags = parseRawTags(c.rawTags);
   });
   return { title, chaps };
+}
+
+// 把原文标签字符串映射到 31 个标准标签（按 label 精确匹配）
+function parseRawTags(raw){
+  if(!raw) return [];
+  const out = [];
+  const parts = raw.split(/[、，,；;\s]+/).map(s=>s.trim()).filter(Boolean);
+  for(const p of parts){
+    const hit = TAG_DEFS.find(d => d.label === p);
+    if(hit && !out.includes(hit.k)) out.push(hit.k);
+  }
+  return out;
 }
 
 function tagDef(k){ return TAG_DEFS.find(d=>d.k===k); }
@@ -1364,23 +1389,28 @@ document.getElementById('closeMergeBtn').addEventListener('click', ()=> document
 
 function renderMerge(){
   const body = document.getElementById('mergeBody');
-  document.getElementById('mergeCount').textContent = `${mergeList.length} 章`;
+  document.getElementById('mergeCount').textContent = `${mergeList.length} 段`;
   if(mergeList.length===0){
     body.innerHTML = `<div class="empty-state"><div class="ico">🗒️</div>合并区为空</div>`; return;
   }
   body.innerHTML = mergeList.map((it, idx)=>{
-    const tagsHTML = it.tags.map(k=>{
+    const tagsHTML = (it.tags||[]).map(k=>{
       const d = tagDef(k);
       return `<span class="tag-chip ${d.cls}" style="cursor:default; padding:3px 9px; font-size:11px">${d.label}</span>`;
     }).join('');
     const sideClass = it.srcSide==='l'||it.srcSide==='r' ? it.srcSide : 'l';
+    const isCustom = it.custom;
+    const srcLabel = isCustom ? '✍️ 自加段' : escapeHtml(it.srcLabel);
+    const titleHTML = it.title!=null ? `<div class="m-title" contenteditable="true" data-edit="title">${escapeHtml(it.title)}</div>` : '';
+    const bodyHTML = it.body!=null ? `<div class="m-body" contenteditable="true" data-edit="body">${escapeHtml(it.body)}</div>` : '';
     return `
       <div class="m-item" data-idx="${idx}">
         <div class="m-content">
-          <span class="m-source ${sideClass}">${escapeHtml(it.srcLabel)}</span>
-          <div class="m-title">${escapeHtml(it.title)}</div>
-          ${it.body?`<div class="m-body">${escapeHtml(it.body)}</div>`:''}
-          <div class="chap-tagline" style="margin-top:6px">${tagsHTML}</div>
+          <span class="m-source ${sideClass}">${srcLabel}</span>
+          ${titleHTML}
+          ${bodyHTML}
+          ${(it.tags&&it.tags.length)?`<div class="chap-tagline" style="margin-top:6px">${tagsHTML}</div>`:''}
+          <div class="m-edit-hint">点击标题或正文可直接编辑</div>
         </div>
         <div class="m-actions">
           <div class="m-handle" title="拖动排序">
@@ -1389,17 +1419,46 @@ function renderMerge(){
           <button class="m-del" title="删除">✕</button>
           <div class="m-idx">${idx+1}</div>
         </div>
-      </div>`;
+      </div>
+      <div class="m-insert" data-ins="${idx}"><span>＋ 在此插入一段</span></div>`;
   }).join('');
 }
 
+/* merge body click: delete / insert / edit-save */
 document.getElementById('mergeBody').addEventListener('click', e=>{
   const del = e.target.closest('.m-del');
-  if(!del) return;
-  const idx = +del.closest('.m-item').dataset.idx;
-  mergeList.splice(idx,1);
-  renderMerge();
+  if(del){
+    const idx = +del.closest('.m-item').dataset.idx;
+    mergeList.splice(idx,1);
+    renderMerge();
+    return;
+  }
+  const ins = e.target.closest('[data-ins]');
+  if(ins){
+    const idx = +ins.dataset.ins;
+    mergeList.splice(idx+1, 0, { custom:true, srcLabel:'自加段', srcSide:'l', title:'新段落', body:'在这里写内容…', tags:[] });
+    renderMerge();
+    // 聚焦到新插入段的 body
+    const items = document.querySelectorAll('#mergeBody .m-item');
+    const newItem = items[idx+1];
+    if(newItem){
+      const body = newItem.querySelector('[data-edit="body"]');
+      if(body){ body.focus(); /* 选中全部 */ const r=document.createRange(); r.selectNodeContents(body); const s=window.getSelection(); s.removeAllRanges(); s.addRange(r); }
+    }
+    return;
+  }
 });
+
+/* inline edit: 失焦时把内容写回 mergeList */
+document.getElementById('mergeBody').addEventListener('blur', e=>{
+  const ed = e.target.closest('[data-edit]');
+  if(!ed) return;
+  const item = ed.closest('.m-item');
+  const idx = +item.dataset.idx;
+  const field = ed.dataset.edit;
+  const text = ed.innerText.replace(/\u00a0/g,' ').trim();
+  mergeList[idx][field] = text;
+}, true);
 document.getElementById('clearMergeBtn').addEventListener('click', ()=>{ mergeList.length=0; renderMerge(); });
 
 /* =========================================================
@@ -1460,9 +1519,20 @@ document.getElementById('clearMergeBtn').addEventListener('click', ()=>{ mergeLi
 /* =========================================================
  * Export / copy
  * ========================================================= */
+function syncEditsToMergeList(){
+  document.querySelectorAll('#mergeBody .m-item').forEach(item=>{
+    const idx = +item.dataset.idx;
+    const titleEl = item.querySelector('[data-edit="title"]');
+    const bodyEl = item.querySelector('[data-edit="body"]');
+    if(titleEl) mergeList[idx].title = titleEl.innerText.replace(/\u00a0/g,' ').trim();
+    if(bodyEl) mergeList[idx].body = bodyEl.innerText.replace(/\u00a0/g,' ').trim();
+  });
+}
 function mergeToText(){
+  syncEditsToMergeList();
   return mergeList.map(it=>{
-    let t = `# ${it.title}\n`;
+    let t = '';
+    if(it.title) t += `# ${it.title}\n`;
     if(it.body) t += it.body + '\n';
     if(it.tags && it.tags.length) t += `标签：${it.tags.map(k=>tagDef(k).label).join('、')}\n`;
     return t;
