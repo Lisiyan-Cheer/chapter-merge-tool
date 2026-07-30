@@ -300,6 +300,9 @@
     <button id="fontPlus" aria-label="放大字号">A+</button>
   </div>
   <button class="btn ghost sm" id="cartBtn">🛒 合并 <span id="cartCount">0</span></button>
+  <button class="btn ghost sm" id="exportDataBtn" title="导出全部数据为 JSON（电脑传到手机可导入）">⬆️ 导出</button>
+  <button class="btn ghost sm" id="importDataBtn" title="导入 JSON 数据（合并到当前）">⬇️ 导入</button>
+  <input type="file" id="importFile" accept=".json,application/json" style="display:none">
 </div>
 
 <!-- ===== HOME VIEW ===== -->
@@ -511,41 +514,41 @@
 
 <script>
 /* =========================================================
- * 31-tag taxonomy
- * key: canonical short tag (for class prefix), label, keywords
+ * 31-tag taxonomy (manual tagging — user picks per chapter)
+ * key: short id, label: shown text, cls: color class
  * ========================================================= */
 const TAG_DEFS = [
-  {k:'routine',  label:'日常',  cls:'tc-routine',   words:['日常','生活','烟火','县城物价','日常','买菜','吃饭','早餐','叙旧','做客']},
-  {k:'setup',    label:'铺垫',  cls:'tc-setup',     words:['铺垫','背景','介绍','出现','搬','收到','得知','发现','认识','相识']},
-  {k:'funny',    label:'搞笑',  cls:'tc-funny',     words:['搞笑','吐槽','笑疯','笑死','哭笑不得','尴尬','闹剧','乌龙','滑稽','整蛊','雷人']},
-  {k:'biz',      label:'经营',  cls:'tc-biz',       words:['经营','超市','生意','酒店','瑜伽馆','开工','翻新','基金会','工程','合同','施工']},
-  {k:'flirt',    label:'暧昧',  cls:'tc-flirt',     words:['暧昧','调情','心动','公主抱','接吻','亲吻','温存','心跳','撒娇','撩','甜蜜','相拥','撒娇','放电']},
-  {k:'love',     label:'感情线',cls:'tc-love',     words:['感情线','恋爱','表白','约会','见家长','撮合','姻缘','相处','女友','男友','情侣','结婚','求婚']},
-  {k:'system',   label:'系统',  cls:'tc-system',    words:['系统','外挂','助力','升级','激活','双倍返现','入账','失业补助','被动收入','躺赚']},
-  {k:'cool',     label:'爽点',  cls:'tc-cool',      words:['爽点','装逼','排面','拿捏','霸气','底气','碾压','震撼','风光','排场','气派']},
-  {k:'show',     label:'展示',  cls:'tc-show',      words:['展示','晒','开光','新车','新车到货','试驾','亮相','豪车','牌照','车牌','存款','手表']},
-  {k:'conflict', label:'冲突',  cls:'tc-conflict',  words:['冲突','对峙','翻脸','撕破脸','吵架','质问','上门','闹事','威胁','硬刚','对骂']},
-  {k:'facepalm', label:'打脸',  cls:'tc-facepalm',  words:['打脸','社死','破防','翻车','反杀','现形','败露','吃瘪','打脸','教训','反噬','真面目']},
-  {k:'climax',   label:'高潮',  cls:'tc-climax',   words:['高潮','爆发','群殴','揪出','揭露','当众拆穿','大戏上演','社死','翻盘']},
-  {k:'crisis',   label:'危机',  cls:'tc-crisis',    words:['危机','自杀','赌债','被讹','车祸','受伤','欠债','追债','威胁','绑架','出事','住院']},
-  {k:'work',     label:'职场',  cls:'tc-work',      words:['职场','辞职','裁员','面试','主管','老板','PUA','打工','上班','工作','同事','退休']},
-  {k:'reward',   label:'奖励',  cls:'tc-reward',    words:['奖励','送','谢礼','赠','犒劳','股份','红包','彩礼','礼物','金条','兰博基尼']},
-  {k:'levelup',  label:'升级',  cls:'tc-levelup',   words:['升级','体质','突破','提升','增长','加强','进步','蜕变','成长','进化']},
-  {k:'stream',   label:'直播',  cls:'tc-stream',    words:['直播','网红','粉丝','账号','封禁','视频','爆火','热搜','流量']},
-  {k:'meet',     label:'邂逅',  cls:'tc-meet',     words:['邂逅','偶遇','重逢','相遇','再见','重逢','加好友','搭讪']},
-  {k:'campus',   label:'校园',  cls:'tc-campus',    words:['校园','学校','学生','同学','大学','学姐','辅导员','保研','偷耳机','考试']},
-  {k:'task',     label:'任务',  cls:'tc-task',      words:['任务','搞定','解决','处理','安排','出面','帮忙','搞定','搞定']},
-  {k:'twist',    label:'反转',  cls:'tc-twist',     words:['反转','没想到','竟然','原来','不料','转折','意外','打脸反转','真相反转']},
-  {k:'opening',  label:'开局',  cls:'tc-opening',   words:['开局','回乡','返乡','裁员','被裁','回到','开始','踏上','启程','开篇','第一章']},
-  {k:'spend',    label:'消费',  cls:'tc-spend',     words:['消费','买','全款','订车','买房','别墅','购物','奢侈','始祖鸟','百达翡丽','金条','定期','存款','购车','充值','消费']},
-  {k:'reveal',   label:'揭秘',  cls:'tc-reveal',    words:['揭秘','真相','发现','查清','调查','曝光','揭穿','揭开','秘密','宝藏','密室']},
-  {k:'travel',   label:'旅行',  cls:'tc-travel',    words:['旅行','登山','爬山','温泉','滑冰','越野','探险','防空洞','道观','游玩','出游','演唱会']},
-  {k:'perk',     label:'福利',  cls:'tc-perk',      words:['福利','五险一金','升职','加薪','奖学金','公积金','待遇','保险','奖金']},
-  {k:'movein',   label:'入住',  cls:'tc-movein',   words:['入住','搬家','收房','别墅','新房','乔迁','安家','落户口']},
-  {k:'return',   label:'回归',  cls:'tc-return',   words:['回归','回乡','返乡','辞职回','老家','回龙华县','帝都回']},
-  {k:'memory',   label:'回忆',  cls:'tc-memory',    words:['回忆','小时候','童年','初中','大学','过去','当年','往事','旧事']},
-  {k:'misunderstand', label:'误会', cls:'tc-misunderstand', words:['误会','误解','冤枉','搞错','以为','错怪','乌龙','辨清']},
-  {k:'bridge',   label:'过渡',  cls:'tc-bridge',    words:['过渡','准备','计划','打算','商量','考虑','聊','叙','简单','随后','之后']},
+  {k:'routine',  label:'日常',  cls:'tc-routine'},
+  {k:'setup',    label:'铺垫',  cls:'tc-setup'},
+  {k:'funny',    label:'搞笑',  cls:'tc-funny'},
+  {k:'biz',      label:'经营',  cls:'tc-biz'},
+  {k:'flirt',    label:'暧昧',  cls:'tc-flirt'},
+  {k:'love',     label:'感情线',cls:'tc-love'},
+  {k:'system',   label:'系统',  cls:'tc-system'},
+  {k:'cool',     label:'爽点',  cls:'tc-cool'},
+  {k:'show',     label:'展示',  cls:'tc-show'},
+  {k:'conflict', label:'冲突',  cls:'tc-conflict'},
+  {k:'facepalm', label:'打脸',  cls:'tc-facepalm'},
+  {k:'climax',   label:'高潮',  cls:'tc-climax'},
+  {k:'crisis',   label:'危机',  cls:'tc-crisis'},
+  {k:'work',     label:'职场',  cls:'tc-work'},
+  {k:'reward',   label:'奖励',  cls:'tc-reward'},
+  {k:'levelup',  label:'升级',  cls:'tc-levelup'},
+  {k:'stream',   label:'直播',  cls:'tc-stream'},
+  {k:'meet',     label:'邂逅',  cls:'tc-meet'},
+  {k:'campus',   label:'校园',  cls:'tc-campus'},
+  {k:'task',     label:'任务',  cls:'tc-task'},
+  {k:'twist',    label:'反转',  cls:'tc-twist'},
+  {k:'opening',  label:'开局',  cls:'tc-opening'},
+  {k:'spend',    label:'消费',  cls:'tc-spend'},
+  {k:'reveal',   label:'揭秘',  cls:'tc-reveal'},
+  {k:'travel',   label:'旅行',  cls:'tc-travel'},
+  {k:'perk',     label:'福利',  cls:'tc-perk'},
+  {k:'movein',   label:'入住',  cls:'tc-movein'},
+  {k:'return',   label:'回归',  cls:'tc-return'},
+  {k:'memory',   label:'回忆',  cls:'tc-memory'},
+  {k:'misunderstand', label:'误会', cls:'tc-misunderstand'},
+  {k:'bridge',   label:'过渡',  cls:'tc-bridge'},
 ];
 
 /* =========================================================
@@ -1485,6 +1488,71 @@ document.getElementById('copyBtn').addEventListener('click', async ()=>{
 function escapeHtml(s){
   return (s||'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
+
+/* =========================================================
+ * Data export / import (manual cross-device sync)
+ * 导出: 打包 docs + cart + 字号 为 JSON 下载
+ * 导入: 读 JSON，按 id 合并（同 id 文档以导入版为准可勾选覆盖/跳过）
+ * ========================================================= */
+function buildExportData(){
+  return {
+    app:'chapter-tool', version:1, exportedAt:new Date().toISOString(),
+    fontPx, docs, cart
+  };
+}
+document.getElementById('exportDataBtn').addEventListener('click', ()=>{
+  if(docs.length===0 && cart.length===0){ alert('没有可导出的数据'); return; }
+  const data = buildExportData();
+  const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json;charset=utf-8'});
+  const a = document.createElement('a');
+  const stamp = new Date().toISOString().slice(0,16).replace(/[:T]/g,'-');
+  a.href = URL.createObjectURL(blob);
+  a.download = `章节工具数据-${stamp}.json`;
+  a.click(); URL.revokeObjectURL(a.href);
+});
+
+document.getElementById('importDataBtn').addEventListener('click', ()=> document.getElementById('importFile').click());
+document.getElementById('importFile').addEventListener('change', ()=>{
+  const f = document.getElementById('importFile').files[0];
+  if(!f) return;
+  const r = new FileReader();
+  r.onload = ()=>{
+    try{
+      const data = JSON.parse(r.result);
+      if(data.app !== 'chapter-tool') throw new Error('不是本工具的数据文件');
+      // merge docs: by id, duplicate id -> 覆盖（导入版为准）
+      const importedDocs = data.docs || [];
+      const importedCart = data.cart || [];
+      const mode = confirm(
+        `导入 ${importedDocs.length} 个文档、${importedCart.length} 条已选。\n\n`+
+        `点「确定」= 合并并覆盖同 id 文档（导入版为准）；\n`+
+        `点「取消」= 跳过已存在的同 id 文档（保留本地版）。\n\n`+
+        `字号也会同步${data.fontPx?`为 ${data.fontPx}px`:''}。`
+      ) ? 'overwrite' : 'skip';
+      // merge docs
+      const localIds = new Set(docs.map(d=>d.id));
+      for(const d of importedDocs){
+        if(localIds.has(d.id)){
+          if(mode==='overwrite'){
+            const i = docs.findIndex(x=>x.id===d.id);
+            docs[i] = d;
+          }
+        } else {
+          docs.push(d);
+        }
+      }
+      // merge cart: 去重合并
+      const cartSet = new Set(cart);
+      for(const c of importedCart){ if(!cartSet.has(c)){ cart.push(c); cartSet.add(c); } }
+      // font
+      if(data.fontPx){ fontPx = data.fontPx; applyFont(); localStorage.setItem(LS_FONT, fontPx); }
+      saveDocs(); saveCart(); updateCartBadge(); renderHome();
+      alert(`导入完成。当前共 ${docs.length} 个文档、${cart.length} 条已选。`);
+    } catch(e){ alert('导入失败：'+ (e.message||'文件格式错误')); }
+  };
+  r.readAsText(f, 'UTF-8');
+  document.getElementById('importFile').value = '';
+});
 
 /* init */
 renderHome();
