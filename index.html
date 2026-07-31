@@ -294,6 +294,25 @@
   .btn.del{color:#dc2626; border-color:#fecaca; background:#fee2e2}
   .btn.del:hover{background:#fecaca}
 
+  /* home nav cards */
+  .home-nav{display:grid; grid-template-columns:1fr 1fr; gap:12px; max-width:680px; margin:8px auto 0}
+  .nav-card{
+    display:flex; flex-direction:column; gap:4px; text-align:left;
+    background:#fff; border:1px solid var(--border); border-radius:14px;
+    padding:18px 16px; cursor:pointer; box-shadow:var(--shadow); transition:.12s;
+    font:inherit; color:inherit;
+  }
+  .nav-card:hover{border-color:var(--accent); background:var(--sel,#eff6ff); transform:translateY(-1px)}
+  .nav-card:active{transform:translateY(0)}
+  .nc-ico{font-size:26px}
+  .nc-t{font-size:16px; font-weight:600}
+  .nc-m{font-size:12px; color:var(--muted); line-height:1.5}
+  /* library */
+  .lib-toolbar{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:10px 0}
+  .doc-card .cb{width:24px; height:24px; flex:0 0 24px; margin:0; accent-color:var(--accent); cursor:pointer; touch-action:manipulation}
+  .doc-card{cursor:pointer}
+  .doc-card.sel{border-color:var(--accent); box-shadow:0 0 0 2px rgba(59,130,246,.25)}
+
   /* mobile */
   @media (max-width:760px){
     .workspace{grid-template-columns:1fr; gap:10px}
@@ -305,6 +324,7 @@
     .topbar h1{font-size:15px}
     .compare-grid{grid-template-columns:1fr}
     .pb-grid{grid-template-columns:1fr}
+    .home-nav{grid-template-columns:1fr}
   }
   .no-res{user-select:none}
 </style>
@@ -325,27 +345,59 @@
   <input type="file" id="importFile" accept=".json,application/json" style="display:none">
 </div>
 
-<!-- ===== HOME VIEW ===== -->
+<!-- ===== HOME VIEW (导航中心) ===== -->
 <div class="view active" id="view-home">
   <div class="hero">
-    <div class="ico">📂</div>
-    <h2>文档库</h2>
-    <p>上传小说概括，自动按标签分类整理</p>
-    <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:14px">
-      <button class="btn primary" id="goCompareBtn">🔗 对比合并（同章两版挑段）</button>
-      <button class="btn" id="goWorkspaceBtn">📑 双列章节合并</button>
-      <button class="btn" id="goPromptBtn">✍️ 提示词生成</button>
-    </div>
+    <div class="ico">📚</div>
+    <h2>章节工具</h2>
+    <p>选择一个功能开始</p>
+  </div>
+  <div class="home-nav">
+    <button class="nav-card" id="goLibraryBtn">
+      <span class="nc-ico">📂</span>
+      <span class="nc-t">文档库</span>
+      <span class="nc-m">上传/管理对标书概括，按标签分类，勾选进双列对比</span>
+    </button>
+    <button class="nav-card" id="goCompareBtn">
+      <span class="nc-ico">🔗</span>
+      <span class="nc-t">对比合并</span>
+      <span class="nc-m">同章两版挑段，拼成最终一版</span>
+    </button>
+    <button class="nav-card" id="goWorkspaceBtn">
+      <span class="nc-ico">📑</span>
+      <span class="nc-t">双列章节合并</span>
+      <span class="nc-m">两个文档左右对比，勾选章节合并导出</span>
+    </button>
+    <button class="nav-card" id="goPromptBtn">
+      <span class="nc-ico">✍️</span>
+      <span class="nc-t">提示词生成</span>
+      <span class="nc-m">参考原文 + 想法/设定 → 生成仿写提示词</span>
+    </button>
+  </div>
+</div>
+
+<!-- ===== LIBRARY VIEW (文档库，独立页面) ===== -->
+<div class="view" id="view-library">
+  <div class="back-row">
+    <button class="btn ghost sm" id="libBack">← 返回</button>
+    <h2>📂 文档库</h2>
+    <button class="btn ghost sm" id="libUploadBtn">⬆️ 上传文档</button>
+    <input type="file" id="homeFile" accept=".md,.txt,text/markdown,text/plain" multiple style="display:none">
   </div>
   <div class="dropzone" id="homeDrop">
     <div class="big">📄</div>
     <div>点击或拖拽上传文档</div>
     <div style="font-size:12px; margin-top:4px">支持 .md / .txt，以 # 作为章节分隔</div>
-    <input type="file" id="homeFile" accept=".md,.txt,text/markdown,text/plain" multiple>
+  </div>
+  <div class="lib-toolbar" id="libToolbar">
+    <span class="sel-count" id="libSelCount">已选 0</span>
+    <button class="btn primary sm" id="goWsFromPicks" disabled>进入双列对比 →</button>
+    <button class="btn del sm" id="batchDelBtn" disabled>🗑️ 批量删除</button>
+    <button class="btn ghost sm" id="clearWsPicks">取消勾选</button>
   </div>
   <div class="doc-lib" id="docLib"></div>
   <div class="tag-section" id="tagSection" style="display:none">
-    <h3>🏷️ 按标签分类（点击筛选章节 · 标签需手动贴，见各章「+ 添加标签」）</h3>
+    <h3>🏷️ 按标签分类（点击筛选章节）</h3>
     <div class="tag-cloud" id="tagCloud"></div>
   </div>
 </div>
@@ -704,14 +756,15 @@ function tagChipHTML(k, count){
 }
 
 /* =========================================================
- * Render Home: doc library + tag cloud
+ * Render Library (独立文档库页面)
  * ========================================================= */
-function renderHome(){
+function renderLibrary(){
   const lib = document.getElementById('docLib');
   lib.innerHTML = '';
   if(docs.length === 0){
-    lib.innerHTML = `<div style="text-align:center; color:var(--muted); padding:30px 16px">还没有文档，上传一个试试 ↑</div>`;
+    lib.innerHTML = `<div style="text-align:center; color:var(--muted); padding:30px 16px">还没有文档，点上方「上传文档」或拖拽文件到这里 ↑</div>`;
     document.getElementById('tagSection').style.display = 'none';
+    updateLibToolbar();
     return;
   }
 
@@ -722,20 +775,20 @@ function renderHome(){
   });
   const sortedTags = Object.keys(tagCount).sort((a,b)=> tagCount[b]-tagCount[a]);
 
-  // doc cards
+  // doc cards — 整行可点切换勾选，勾选框变大
   docs.forEach(doc=>{
     const card = document.createElement('div');
-    card.className = 'doc-card';
     const picked = wsPicks.has(doc.id);
+    card.className = 'doc-card' + (picked?' sel':'');
+    card.dataset.pickWs = doc.id;
     card.innerHTML = `
-      <input type="checkbox" class="cb ws-pick" data-pick-ws="${doc.id}" ${picked?'checked':''} style="flex:0 0 20px; margin-top:2px; accent-color:var(--accent)">
-      <div class="info" data-open-doc="${doc.id}" style="cursor:pointer">
+      <input type="checkbox" class="cb" ${picked?'checked':''} data-pick-ws="${doc.id}">
+      <div class="info">
         <div class="t">${escapeHtml(doc.title)}</div>
         <div class="m">${doc.chaps.length} 章 · ${cart.filter(x=>x.startsWith(doc.id+':')).length} 已选入合并</div>
       </div>
       <div class="act">
         <button class="btn sm" data-open-doc="${doc.id}">查看</button>
-        <button class="btn sm del" data-del-doc="${doc.id}">删</button>
       </div>`;
     lib.appendChild(card);
   });
@@ -746,32 +799,19 @@ function renderHome(){
     `<span style="color:var(--muted)">无标签</span>`;
   document.getElementById('tagSection').style.display = '';
 
-  // ws pick bar
-  renderWsPickBar();
+  updateLibToolbar();
 }
 
-/* ws pick bar: shows selected count + 进入双列对比 button */
-function renderWsPickBar(){
-  let bar = document.getElementById('wsPickBar');
-  if(!bar){
-    bar = document.createElement('div');
-    bar.id = 'wsPickBar';
-    bar.style.cssText = 'display:flex; align-items:center; gap:10px; margin:10px 0; flex-wrap:wrap';
-    const sec = document.getElementById('tagSection');
-    sec.parentNode.insertBefore(bar, sec);
-  }
+/* 兼容旧调用名 */
+function renderHome(){ renderLibrary(); }
+
+/* library toolbar state */
+function updateLibToolbar(){
   const n = wsPicks.size;
-  if(docs.length===0){ bar.style.display='none'; return; }
-  bar.style.display='flex';
-  const names = [...wsPicks].map(id=> docs.find(d=>d.id===id)?.title || '').filter(Boolean);
-  bar.innerHTML = `
-    <span class="sel-count">已选 ${n}/2 ${names.length?`· ${names.map(escapeHtml).join(' / ')}`:''}</span>
-    <button class="btn primary sm" id="goWsFromPicks" ${n===0?'disabled':''}>进入双列对比 →</button>
-    ${n>0?`<button class="btn ghost sm" id="clearWsPicks">取消勾选</button>`:''}
-    <span style="font-size:12px; color:var(--muted)">勾选 1~2 个文档（不选则进入空白双列页自己上传）</span>`;
-  document.getElementById('goWsFromPicks').addEventListener('click', sendPicksToWorkspace);
-  const clr = document.getElementById('clearWsPicks');
-  if(clr) clr.addEventListener('click', ()=>{ wsPicks.clear(); renderHome(); });
+  document.getElementById('libSelCount').textContent = `已选 ${n}/2`;
+  document.getElementById('goWsFromPicks').disabled = n===0;
+  document.getElementById('batchDelBtn').disabled = n===0;
+  document.getElementById('clearWsPicks').style.visibility = n>0 ? '' : 'hidden';
 }
 
 /* send selected docs (1~2) into workspace left/right */
@@ -792,6 +832,21 @@ function sendPicksToWorkspace(){
   showView('workspace');
 }
 
+/* batch delete */
+document.getElementById('batchDelBtn').addEventListener('click', ()=>{
+  const ids = [...wsPicks];
+  if(ids.length===0) return;
+  if(!confirm(`确定删除选中的 ${ids.length} 个文档？不可恢复。`)) return;
+  docs = docs.filter(d=>!wsPicks.has(d.id));
+  cart = cart.filter(x=>{ const [did]=x.split(':'); return !wsPicks.has(did); });
+  wsPicks.clear();
+  saveDocs(); saveCart(); updateCartBadge(); renderLibrary();
+});
+
+/* clear picks */
+document.getElementById('clearWsPicks').addEventListener('click', ()=>{ wsPicks.clear(); renderLibrary(); });
+document.getElementById('goWsFromPicks').addEventListener('click', sendPicksToWorkspace);
+
 /* =========================================================
  * View switching
  * ========================================================= */
@@ -800,9 +855,13 @@ function showView(id){
   document.getElementById('view-'+id).classList.add('active');
   window.scrollTo(0,0);
 }
-document.getElementById('logo').addEventListener('click', ()=>{ showView('home'); renderHome(); });
+document.getElementById('logo').addEventListener('click', ()=>{ showView('home'); });
 document.getElementById('goCompareBtn').addEventListener('click', ()=>{ showView('compare'); });
 document.getElementById('goWorkspaceBtn').addEventListener('click', ()=>{ showView('workspace'); });
+document.getElementById('goPromptBtn').addEventListener('click', ()=>{ showView('prompt'); });
+document.getElementById('goLibraryBtn').addEventListener('click', ()=>{ showView('library'); renderLibrary(); });
+document.getElementById('libBack').addEventListener('click', ()=>{ showView('home'); });
+document.getElementById('libUploadBtn').addEventListener('click', ()=> document.getElementById('homeFile').click());
 
 /* =========================================================
  * COMPARE mode: two versions of same chapter -> pick paragraphs
@@ -1149,8 +1208,7 @@ document.getElementById('pbClearOut').addEventListener('click', ()=>{
 });
 
 /* nav */
-document.getElementById('goPromptBtn').addEventListener('click', ()=> showView('prompt'));
-document.getElementById('promptBack').addEventListener('click', ()=>{ showView('home'); renderHome(); });
+document.getElementById('promptBack').addEventListener('click', ()=>{ showView('home'); });
 
 /* =========================================================
  * Upload to library (home)
@@ -1180,31 +1238,21 @@ function loadToLib(file){
 }
 setupHomeDrop();
 
-/* event delegation on docLib */
+/* event delegation on docLib — 点卡片任意处切换勾选，点「查看」按钮打开文档 */
 document.getElementById('docLib').addEventListener('click', e=>{
-  const del = e.target.closest('[data-del-doc]');
-  const pick = e.target.closest('[data-pick-ws]');
-  if(del){
-    if(!confirm('删除这个文档？')) return;
-    const id = del.dataset.delDoc;
-    docs = docs.filter(d=>d.id!==id);
-    cart = cart.filter(x=>!x.startsWith(id+':'));
-    wsPicks.delete(id);
-    saveDocs(); saveCart(); updateCartBadge(); renderHome();
-    return;
-  }
-  if(pick){
-    const id = pick.dataset.pickWs;
-    if(wsPicks.has(id)) wsPicks.delete(id);
-    else {
-      if(wsPicks.size>=2){ alert('最多勾选 2 个文档进入双列对比'); return; }
-      wsPicks.add(id);
-    }
-    renderHome();
-    return;
-  }
+  // 「查看」按钮优先
   const open = e.target.closest('[data-open-doc]');
-  if(open){ openDoc(open.dataset.openDoc); }
+  if(open){ e.stopPropagation(); openDoc(open.dataset.openDoc); return; }
+  // 点卡片其它位置 = 切换勾选
+  const card = e.target.closest('.doc-card[data-pick-ws]');
+  if(!card) return;
+  const id = card.dataset.pickWs;
+  if(wsPicks.has(id)) wsPicks.delete(id);
+  else {
+    if(wsPicks.size>=2){ alert('最多勾选 2 个文档进入双列对比'); return; }
+    wsPicks.add(id);
+  }
+  renderLibrary();
 });
 
 /* =========================================================
@@ -1700,13 +1748,13 @@ document.getElementById('goDataBtn').addEventListener('click', ()=>{
   if(st) st.textContent = `当前：${docs.length} 个文档 · ${docs.reduce((s,d)=>s+d.chaps.length,0)} 章 · 合并车 ${cart.length} 条 · 字号 ${fontPx}px`;
   showView('data');
 });
-document.getElementById('dataBack').addEventListener('click', ()=>{ showView('home'); renderHome(); });
+document.getElementById('dataBack').addEventListener('click', ()=>{ showView('home'); });
 document.getElementById('wipeDataBtn').addEventListener('click', ()=>{
   if(!confirm('确定清空全部本地数据？所有文档、标签、合并车都会删除，不可恢复。')) return;
   docs = []; cart = []; wsPicks.clear();
-  saveDocs(); saveCart(); updateCartBadge(); renderHome();
+  saveDocs(); saveCart(); updateCartBadge();
   alert('已清空');
-  showView('home'); renderHome();
+  showView('home');
 });
 document.getElementById('exportDataBtn').addEventListener('click', ()=>{
   if(docs.length===0 && cart.length===0){ alert('没有可导出的数据'); return; }
@@ -1762,8 +1810,7 @@ document.getElementById('importFile').addEventListener('change', ()=>{
   document.getElementById('importFile').value = '';
 });
 
-/* init */
-renderHome();
+/* init — 首页是导航中心，文档库打开时才渲染 */
 </script>
 </body>
 </html>
