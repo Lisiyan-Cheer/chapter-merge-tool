@@ -808,15 +808,18 @@ function renderHome(){ renderLibrary(); }
 /* library toolbar state */
 function updateLibToolbar(){
   const n = wsPicks.size;
-  document.getElementById('libSelCount').textContent = `已选 ${n}/2`;
+  document.getElementById('libSelCount').textContent = `已选 ${n}`;
   document.getElementById('goWsFromPicks').disabled = n===0;
   document.getElementById('batchDelBtn').disabled = n===0;
   document.getElementById('clearWsPicks').style.visibility = n>0 ? '' : 'hidden';
+  // 进双列按钮文案：选超过2个时提示只取前2
+  const gw = document.getElementById('goWsFromPicks');
+  gw.textContent = n>2 ? `进入双列对比（取前2个）→` : `进入双列对比 →`;
 }
 
-/* send selected docs (1~2) into workspace left/right */
+/* send selected docs into workspace left/right (取前2个) */
 function sendPicksToWorkspace(){
-  const ids = [...wsPicks];
+  const ids = [...wsPicks].slice(0,2);
   ws.l = {title:'',chaps:[]};
   ws.r = {title:'',chaps:[]};
   if(ids.length>=1){
@@ -1248,10 +1251,7 @@ document.getElementById('docLib').addEventListener('click', e=>{
   if(!card) return;
   const id = card.dataset.pickWs;
   if(wsPicks.has(id)) wsPicks.delete(id);
-  else {
-    if(wsPicks.size>=2){ alert('最多勾选 2 个文档进入双列对比'); return; }
-    wsPicks.add(id);
-  }
+  else wsPicks.add(id); // 批量勾选不限数量
   renderLibrary();
 });
 
