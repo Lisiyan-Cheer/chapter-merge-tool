@@ -391,7 +391,7 @@
   </div>
   <div class="lib-toolbar" id="libToolbar">
     <span class="sel-count" id="libSelCount">已选 0</span>
-    <button class="btn ghost sm" id="selectAllBtn">☑️ 全选</button>
+    <button class="btn ghost sm" id="selectAllBtn">全选</button>
     <button class="btn primary sm" id="goWsFromPicks" disabled>进入双列对比 →</button>
     <button class="btn del sm" id="batchDelBtn" disabled>🗑️ 批量删除</button>
     <button class="btn ghost sm" id="clearWsPicks">取消勾选</button>
@@ -538,6 +538,10 @@
 
 <!-- ===== WORKSPACE VIEW ===== -->
 <div class="view" id="view-workspace">
+  <div class="back-row">
+    <button class="btn ghost sm" id="wsBack">← 返回</button>
+    <h2>📑 双列章节合并</h2>
+  </div>
   <div class="workspace">
     <div class="column l" data-side="l">
       <div class="col-head">
@@ -816,8 +820,8 @@ function updateLibToolbar(){
   document.getElementById('clearWsPicks').style.visibility = n>0 ? '' : 'hidden';
   // 全选按钮：全选了就显示「取消全选」
   const sa = document.getElementById('selectAllBtn');
-  if(total>0 && n===total) sa.textContent = '☑️ 取消全选';
-  else sa.textContent = '☑️ 全选';
+  if(total>0 && n===total) sa.textContent = '取消全选';
+  else sa.textContent = '全选';
   // 进双列按钮文案：选超过2个时提示只取前2
   const gw = document.getElementById('goWsFromPicks');
   gw.textContent = n>2 ? `进入双列对比（取前2个）→` : `进入双列对比 →`;
@@ -985,7 +989,8 @@ document.getElementById('cmpClearRes').addEventListener('click', ()=>{
   cmpState.result.length=0; cmpState.pickedKeys.clear();
   renderCmpBlocks('A'); renderCmpBlocks('B'); renderCmpResult();
 });
-document.getElementById('compareBack').addEventListener('click', ()=>{ showView('home'); renderHome(); });
+document.getElementById('compareBack').addEventListener('click', ()=>{ showView('home'); });
+document.getElementById('wsBack').addEventListener('click', ()=>{ showView('library'); renderLibrary(); });
 
 /* export / copy */
 function cmpToText(){
@@ -1435,8 +1440,8 @@ function bindChapClick(container){
 bindChapClick(document.getElementById('tagResultList'));
 bindChapClick(document.getElementById('docViewList'));
 
-document.getElementById('tagBack').addEventListener('click', ()=>{ showView('home'); renderHome(); });
-document.getElementById('docBack').addEventListener('click', ()=>{ showView('home'); renderHome(); });
+document.getElementById('tagBack').addEventListener('click', ()=>{ showView('library'); renderLibrary(); });
+document.getElementById('docBack').addEventListener('click', ()=>{ showView('library'); renderLibrary(); });
 
 /* =========================================================
  * Cart badge + merge from cart
