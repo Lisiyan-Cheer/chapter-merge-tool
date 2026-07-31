@@ -391,6 +391,7 @@
   </div>
   <div class="lib-toolbar" id="libToolbar">
     <span class="sel-count" id="libSelCount">已选 0</span>
+    <button class="btn ghost sm" id="selectAllBtn">☑️ 全选</button>
     <button class="btn primary sm" id="goWsFromPicks" disabled>进入双列对比 →</button>
     <button class="btn del sm" id="batchDelBtn" disabled>🗑️ 批量删除</button>
     <button class="btn ghost sm" id="clearWsPicks">取消勾选</button>
@@ -808,14 +809,29 @@ function renderHome(){ renderLibrary(); }
 /* library toolbar state */
 function updateLibToolbar(){
   const n = wsPicks.size;
+  const total = docs.length;
   document.getElementById('libSelCount').textContent = `已选 ${n}`;
   document.getElementById('goWsFromPicks').disabled = n===0;
   document.getElementById('batchDelBtn').disabled = n===0;
   document.getElementById('clearWsPicks').style.visibility = n>0 ? '' : 'hidden';
+  // 全选按钮：全选了就显示「取消全选」
+  const sa = document.getElementById('selectAllBtn');
+  if(total>0 && n===total) sa.textContent = '☑️ 取消全选';
+  else sa.textContent = '☑️ 全选';
   // 进双列按钮文案：选超过2个时提示只取前2
   const gw = document.getElementById('goWsFromPicks');
   gw.textContent = n>2 ? `进入双列对比（取前2个）→` : `进入双列对比 →`;
 }
+
+/* select all toggle */
+document.getElementById('selectAllBtn').addEventListener('click', ()=>{
+  if(wsPicks.size === docs.length && docs.length>0){
+    wsPicks.clear();
+  } else {
+    docs.forEach(d=> wsPicks.add(d.id));
+  }
+  renderLibrary();
+});
 
 /* send selected docs into workspace left/right (取前2个) */
 function sendPicksToWorkspace(){
