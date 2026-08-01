@@ -694,20 +694,108 @@ const LS_KEY = 'chapterToolDocs_v1';
 const LS_FONT = 'chapterToolFont_v1';
 const LS_CART = 'chapterToolCart_v1';
 
-let docs = loadDocs();
+// 用 IndexedDB 存文档（容量大，不受 localStorage 5MB 限制），cart 仍用 localStorage（数据量小）
+let docs = [];
 let cart = loadCart(); // array of "docId:idx"
-const wsPicks = new Set(); // 文档库中勾选要进双列的 docId，最多2个
+const wsPicks = new Set();
+let idbReady = null; // Promise，标识 IndexedDB 初始化完成
 
-function loadDocs(){
-  try{ return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); }
-  catch{ return []; }
+function openIDB(){
+  return new Promise((resolve, reject)=>{
+    const req = indexedDB.open('chapterToolDB', 1);
+    req.onupgradeneeded = ()=>{ req.result.createObjectStore('docs', { keyPath:'id' }); };
+    req.onsuccess = ()=> resolve(req.result);
+    req.onerror = ()=> reject(req.error);
+  });
 }
-function saveDocs(){ localStorage.setItem(LS_KEY, JSON.stringify(docs)); }
+function idbGet(store, key){
+  return new Promise((resolve, reject)=>{
+    idbReady = idbReady || openIDB();
+    idbReady.then(db=>{
+      const tx = db.transaction(store, 'readonly');
+      const r = tx.objectStore(store).get(key);
+      r.onsuccess = ()=> resolve(r.result);
+      r.onerror = ()=> reject(r.error);
+    }).catch(reject);
+  });
+}
+function idbGetAll(store){
+  return new Promise((resolve, reject)=>{
+    idbReady = idbReady || openIDB();
+    idbReady.then(db=>{
+      const tx = db.transaction(store, 'readonly');
+      const r = tx.objectStore(store).getAll();
+      r.onsuccess = ()=> resolve(r.result || []);
+      r.onerror = ()=> reject(r.error);
+    }).catch(reject);
+  });
+}
+function idbPut(store, value){
+  return new Promise((resolve, reject)=>{
+    idbReady = idbReady || openIDB();
+    idbReady.then(db=>{
+      const tx = db.transaction(store, 'readwrite');
+      tx.objectStore(store).put(value);
+      tx.oncomplete = ()=> resolve();
+      tx.onerror = ()=> reject(tx.error);
+    }).catch(reject);
+  });
+}
+function idbClear(store){
+  return new Promise((resolve, reject)=>{
+    idbReady = idbReady || openIDB();
+    idbReady.then(db=>{
+      const tx = db.transaction(store, 'readwrite');
+      tx.objectStore(store).clear();
+      tx.oncomplete = ()=> resolve();
+      tx.onerror = ()=> reject(tx.error);
+    }).catch(reject);
+  });
+}
+function idbDelete(store, key){
+  return new Promise((resolve, reject)=>{
+    idbReady = idbReady || openIDB();
+    idbReady.then(db=>{
+      const tx = db.transaction(store, 'readwrite');
+      tx.objectStore(store).delete(key);
+      tx.oncomplete = ()=> resolve();
+      tx.onerror = ()=> reject(tx.error);
+    }).catch(reject);
+  });
+}
+
+// 文档存到 IndexedDB 的单个记录里，key='all'
+async function loadDocs(){
+  try{
+    // 先尝试从 IndexedDB 读
+    const rec = await idbGet('docs', 'all');
+    if(rec && rec.docs) return rec.docs;
+    // 兼容：从旧 localStorage 迁移
+    const legacy = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+    if(Array.isArray(legacy)){ await saveDocs(legacy); localStorage.removeItem(LS_KEY); return legacy; }
+    return [];
+  } catch(e){
+    console.warn('IndexedDB load failed, try localStorage', e);
+    try{ return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch{ return []; }
+  }
+}
+async function saveDocs(docsArr){
+  docsArr = docsArr || docs;
+  try{
+    await idbPut('docs', { id:'all', docs: docsArr });
+  } catch(e){
+    console.warn('IndexedDB save failed, fallback localStorage', e);
+    try{ localStorage.setItem(LS_KEY, JSON.stringify(docsArr)); }
+    catch(quotaErr){ alert('存储空间已满（localStorage），请删除一些文档再试。'); throw quotaErr; }
+  }
+}
 function loadCart(){
   try{ return JSON.parse(localStorage.getItem(LS_CART) || '[]'); }
   catch{ return []; }
 }
 function saveCart(){ localStorage.setItem(LS_CART, JSON.stringify(cart)); }
+/* fire-and-forget saveDocs，错误已在 saveDocs 内部 alert */
+function saveDocsSafe(){ saveDocs().catch(()=>{}); }
 
 /* font size */
 let fontPx = parseInt(localStorage.getItem(LS_FONT) || '15', 10);
@@ -886,7 +974,7 @@ document.getElementById('batchDelBtn').addEventListener('click', ()=>{
   docs = docs.filter(d=>!wsPicks.has(d.id));
   cart = cart.filter(x=>{ const [did]=x.split(':'); return !wsPicks.has(did); });
   wsPicks.clear();
-  saveDocs(); saveCart(); updateCartBadge(); renderLibrary();
+  saveDocsSafe(); saveCart(); updateCartBadge(); renderLibrary();
 });
 
 /* clear picks */
@@ -1279,7 +1367,7 @@ function loadToLib(file){
   r.onload = ()=>{
     const {title, chaps} = parseDoc(r.result, file.name);
     docs.push({ id: 'd'+Date.now()+Math.random().toString(36).slice(2,6), title, chaps });
-    saveDocs(); renderHome();
+    saveDocsSafe(); renderHome();
   };
   r.readAsText(file, 'UTF-8');
 }
@@ -1397,7 +1485,7 @@ document.getElementById('tagPickerPop').addEventListener('click', e=>{
   const pos = c.tags.indexOf(k);
   if(pos>=0) c.tags.splice(pos,1);
   else c.tags.push(k);
-  saveDocs();
+  saveDocsSafe();
   // refresh current view
   const curView = document.querySelector('.view.active')?.id;
   if(curView==='view-doc') openDoc(docId);
@@ -1427,7 +1515,7 @@ document.addEventListener('click', e=>{
   const c = doc.chaps[+idx];
   const pos = c.tags.indexOf(k);
   if(pos>=0) c.tags.splice(pos,1);
-  saveDocs();
+  saveDocsSafe();
   const curView = document.querySelector('.view.active')?.id;
   if(curView==='view-doc') openDoc(docId);
   else if(curView==='view-tag') openTag(currentTagKey);
@@ -1793,10 +1881,10 @@ document.getElementById('goDataBtn').addEventListener('click', ()=>{
   showView('data');
 });
 document.getElementById('dataBack').addEventListener('click', ()=>{ showView('home'); });
-document.getElementById('wipeDataBtn').addEventListener('click', ()=>{
+document.getElementById('wipeDataBtn').addEventListener('click', async ()=>{
   if(!confirm('确定清空全部本地数据？所有文档、标签、合并车都会删除，不可恢复。')) return;
   docs = []; cart = []; wsPicks.clear();
-  saveDocs(); saveCart(); updateCartBadge();
+  try{ await saveDocs(); saveCart(); updateCartBadge(); }catch(e){}
   alert('已清空');
   showView('home');
 });
@@ -1816,7 +1904,7 @@ document.getElementById('importFile').addEventListener('change', ()=>{
   const f = document.getElementById('importFile').files[0];
   if(!f) return;
   const r = new FileReader();
-  r.onload = ()=>{
+  r.onload = async ()=>{
     let data;
     try{
       data = JSON.parse(r.result);
@@ -1861,11 +1949,14 @@ document.getElementById('importFile').addEventListener('change', ()=>{
       for(const c of importedCart){ if(!cartSet.has(c)){ cart.push(c); cartSet.add(c); } }
       // font
       if(data.fontPx){ fontPx = data.fontPx; applyFont(); localStorage.setItem(LS_FONT, fontPx); }
-      saveDocs(); saveCart(); updateCartBadge();
-      // 留在数据页，更新统计
-      const st = document.getElementById('dataStats');
-      if(st) st.textContent = `当前：${docs.length} 个文档 · ${docs.reduce((s,d)=>s+d.chaps.length,0)} 章 · 合并车 ${cart.length} 条 · 字号 ${fontPx}px`;
-      alert(`✅ 导入完成\n\n当前共 ${docs.length} 个文档、${cart.length} 条已选。\n\n点「返回」到文档库查看。`);
+      // 异步保存到 IndexedDB
+      try{
+        await saveDocs();
+        saveCart(); updateCartBadge();
+        const st = document.getElementById('dataStats');
+        if(st) st.textContent = `当前：${docs.length} 个文档 · ${docs.reduce((s,d)=>s+d.chaps.length,0)} 章 · 合并车 ${cart.length} 条 · 字号 ${fontPx}px`;
+        alert(`✅ 导入完成\n\n当前共 ${docs.length} 个文档、${cart.length} 条已选。\n\n点「返回」到文档库查看。`);
+      } catch(e){ alert('保存失败：'+ (e.message||'存储空间不足')); }
     } catch(e){ alert('导入失败：'+ (e.message||'未知错误')); }
   };
   r.onerror = ()=> alert('读取文件失败，请重试');
@@ -1874,6 +1965,11 @@ document.getElementById('importFile').addEventListener('change', ()=>{
 });
 
 /* init — 首页是导航中心，文档库打开时才渲染 */
+// 异步加载文档数据
+(async ()=>{
+  docs = await loadDocs();
+  updateCartBadge();
+})();
 </script>
 </body>
 </html>
