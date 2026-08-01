@@ -1817,18 +1817,33 @@ document.getElementById('importFile').addEventListener('change', ()=>{
   if(!f) return;
   const r = new FileReader();
   r.onload = ()=>{
+    let data;
     try{
-      const data = JSON.parse(r.result);
-      if(data.app !== 'chapter-tool') throw new Error('不是本工具的数据文件');
-      // merge docs: by id, duplicate id -> 覆盖（导入版为准）
+      data = JSON.parse(r.result);
+    } catch(parseErr){
+      alert('导入失败：文件不是合法的 JSON 格式。\n\n可能原因：\n• 文件传输时损坏（微信/AirDrop 改了内容）\n• 文件被改过后缀名但内容不是 JSON\n\n文件前 200 字符：\n' + (r.result||'').slice(0,200));
+      return;
+    }
+    try{
+      // 兼容：有 docs 字段就当本工具数据，app 字段不强制
+      if(!data.docs && !data.cart){
+        throw new Error('文件里没有 docs 或 cart 字段，不是本工具的数据文件。\n\n文件顶层字段：' + Object.keys(data).join(', '));
+      }
       const importedDocs = data.docs || [];
       const importedCart = data.cart || [];
-      const mode = confirm(
-        `导入 ${importedDocs.length} 个文档、${importedCart.length} 条已选。\n\n`+
-        `点「确定」= 合并并覆盖同 id 文档（导入版为准）；\n`+
-        `点「取消」= 跳过已存在的同 id 文档（保留本地版）。\n\n`+
-        `字号也会同步${data.fontPx?`为 ${data.fontPx}px`:''}。`
-      ) ? 'overwrite' : 'skip';
+      // 合并模式：默认覆盖；用 confirm 让用户选
+      let mode = 'overwrite';
+      if(importedDocs.length>0){
+        const hasDup = importedDocs.some(d=> docs.some(ld=>ld.id===d.id));
+        if(hasDup){
+          mode = confirm(
+            `导入 ${importedDocs.length} 个文档、${importedCart.length} 条已选。\n\n`+
+            `发现同 id 文档，选择合并方式：\n`+
+            `「确定」= 覆盖（导入版为准）\n`+
+            `「取消」= 跳过（保留本地版）`
+          ) ? 'overwrite' : 'skip';
+        }
+      }
       // merge docs
       const localIds = new Set(docs.map(d=>d.id));
       for(const d of importedDocs){
@@ -1846,10 +1861,14 @@ document.getElementById('importFile').addEventListener('change', ()=>{
       for(const c of importedCart){ if(!cartSet.has(c)){ cart.push(c); cartSet.add(c); } }
       // font
       if(data.fontPx){ fontPx = data.fontPx; applyFont(); localStorage.setItem(LS_FONT, fontPx); }
-      saveDocs(); saveCart(); updateCartBadge(); renderHome();
-      alert(`导入完成。当前共 ${docs.length} 个文档、${cart.length} 条已选。`);
-    } catch(e){ alert('导入失败：'+ (e.message||'文件格式错误')); }
+      saveDocs(); saveCart(); updateCartBadge();
+      // 留在数据页，更新统计
+      const st = document.getElementById('dataStats');
+      if(st) st.textContent = `当前：${docs.length} 个文档 · ${docs.reduce((s,d)=>s+d.chaps.length,0)} 章 · 合并车 ${cart.length} 条 · 字号 ${fontPx}px`;
+      alert(`✅ 导入完成\n\n当前共 ${docs.length} 个文档、${cart.length} 条已选。\n\n点「返回」到文档库查看。`);
+    } catch(e){ alert('导入失败：'+ (e.message||'未知错误')); }
   };
+  r.onerror = ()=> alert('读取文件失败，请重试');
   r.readAsText(f, 'UTF-8');
   document.getElementById('importFile').value = '';
 });
